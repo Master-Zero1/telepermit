@@ -4,7 +4,7 @@
 
 LLM agents now hold real credentials and take real actions. A safety instruction in a prompt is not an enforceable control — the agent can ignore, forget, or be tricked past it. There is no standard runtime mechanism to meter what an agent does, cap how much it spends, restrict where it can go, and **destroy it the instant it exceeds a limit**.
 
-This was a solved problem in 1994. General Magic's Telescript gave mobile agents *permits* enforced by the runtime and *places* that inspected arrivals at the border. In my interpretation, the ecosystem died with its hardware; the idea did not.
+In 1994, General Magic's Telescript gave agents permits enforced by the runtime, and places that inspected arrivals at the border. In my interpretation, the ecosystem died with its hardware; the idea did not.
 
 ## 2. Audience
 
