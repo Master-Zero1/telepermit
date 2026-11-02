@@ -98,6 +98,8 @@ Loop up to `max_turns`: stop if not ALIVE; `clock.advance(TICK_S)`; build `Obser
 | `FINISHED` | `{}` |
 | `RUN_ENDED` | `status` (`FINISHED`/`KILLED`/`REFUSED`/`HARNESS_CAP`) |
 
+- For REFUSE, the Engine (not the Place) sets the BORDER_CHECK `permit_after` to the agent's current permit; `Admission.permit_after` stays None.
+- `narrowed_fields` lists, in the fixed order `lifetime_s, max_steps, allowance, allowed_actions`, the fields where `permit_after` differs from the permit before the check. It is `[]` for ADMIT, REFUSE and the unenforced move.
 KILLED `limit/observed`: allowance -> `permit.allowance` / `spent + cost`; steps -> `max_steps` / `steps + 1`; lifetime -> `lifetime_s` / elapsed.
 `reduce_events(events) -> {place, step, spent, permit, status}`: snapshot fields from the last event; `permit` from the last `RUN_STARTED`/`BORDER_CHECK`; `status` from `RUN_ENDED` (else ALIVE). The same function exists in TypeScript in the UI.
 JSONL writer: one `json.dumps(event, sort_keys=True)` per line.

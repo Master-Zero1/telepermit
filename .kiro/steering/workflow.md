@@ -12,7 +12,7 @@ I am the human owner. I will mostly type short COMMANDS. You do the work, keep s
 | `STATUS` | Summarise PROGRESS.md in 5 lines and name the next command. |
 | `NEXT` | Do the next unfinished step in PROGRESS.md that does not need me in Spec mode. If it needs Spec mode, tell me the exact command to paste. |
 | `PHASE 0` | Run Phase 0 of BUILD_PLAN.md (scaffold). Vibe/chat mode. |
-| `SPEC <n>` | (I run this in Spec mode.) Create spec n from `docs/seeds/spec-0<n>-*.md` and `docs/CONTRACTS.md` using the Kiro spec workflow. Requirements in EARS with numbered IDs; design.md must contain a "Correctness Properties" section listing EVERY property in the seed, each tagged with the requirement IDs it validates; tasks.md must include a property-based test task for every property (not optional). Stop after each of the three documents and wait for my approval. Record the spec folder name in PROGRESS.md. |
+| `SPEC <n>` | (I run this in Spec mode.) Create spec n from `docs/seeds/spec-0<n>-*.md` and `docs/CONTRACTS.md` using the Kiro spec workflow. Requirements in EARS with numbered IDs; design.md must contain a "Correctness Properties" section listing EVERY property in the seed, each tagged with the requirement IDs it validates; tasks.md must include a property-based test task for every property (not optional). Stop after each of the three documents and wait for my approval. Record the spec folder name in PROGRESS.md. Also read only the Phase <n> section of docs/ROADMAP.md (not the whole file) and skim docs/PRD.md on the first spec. Make sure your tasks.md covers every T<n>.x item (keep their order and acceptance checks), but write the requirements, design and tasks yourself. |
 | `RUN TASKS` | Execute the current spec's tasks one at a time, in order. After each task: run backend tests and ruff (and frontend build/test if touched), fix failures, tick the task, commit locally. |
 | `TEST` | Run the full suite (backend pytest + ruff, frontend build + vitest) and report pass/fail counts only. |
 | `FIX <problem>` | Smallest possible fix plus a regression test. No refactors, no new features. |
@@ -37,3 +37,4 @@ I am the human owner. I will mostly type short COMMANDS. You do the work, keep s
 - Keep chat replies short. Do not paste whole files back to me. Do not regenerate files that already pass tests.
 - If a command fails twice for the same reason, stop and show me the error and your diagnosis instead of looping.
 - Be honest in every document: no unverified Telescript claims (see telescript-facts.md), no claims the code does not support.
+- docs/ROADMAP.md and docs/PRD.md are guidance only. If either conflicts with docs/CONTRACTS.md, CONTRACTS.md wins.
