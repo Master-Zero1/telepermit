@@ -36,6 +36,7 @@ Precondition: the human has already created the GitHub repo, cloned it, copied t
 0.2 Backend (folder `backend/`):
 - Create `pyproject.toml` exactly per `tech.md` (hatchling, src layout, extras `dev`, `llm`, `api`).
 - Create `src/telepermit/__init__.py` with `__version__ = "0.1.0"`, and `tests/test_smoke.py` that imports the package and asserts the version.
+- Python version: the machine's default Python may be too new for some dependency wheels. Run `uv python install 3.12`, create `backend/.python-version` containing `3.12`, and use Python 3.12 for every backend command (so `uv sync --extra dev` uses it). If uv is not available, create the venv with a Python 3.12 interpreter.
 - Run `uv sync --extra dev`; if uv is missing use `python -m venv .venv` then `pip install -e ".[dev]"`. Run `pytest -q` (via `uv run` if available) and `ruff check .`. Both must pass.
 
 0.3 Frontend (folder `frontend/`), written by hand (do NOT run an interactive scaffolder):
