@@ -1,9 +1,9 @@
 # Progress tracker (the agent updates this file; the human can read it)
 
-Last updated: (agent fills in date and item)
+Last updated: 2026-11-07. Phase 0 (scaffold) done, committed locally, not pushed.
 
 ## Phases
-- [ ] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
+- [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
 - [ ] Hooks created (docs/HOOKS.md)
 - [ ] Spec 1: permit + identity            folder: ____  branch: ____
 - [ ] Spec 2: tools + places + admission   folder: ____  branch: ____
@@ -22,4 +22,4 @@ Last updated: (agent fills in date and item)
 (agent logs any approved deviation from CONTRACTS.md or BUILD_PLAN.md, with date)
 
 ## Known issues
-(none yet)
+- npm audit: 3 vulnerabilities (1 moderate, 2 critical) in dev tooling only (vitest 3.2.7 via @vitest/mocker, tinypool). Production deps: 0. The fix is a breaking upgrade to vitest 5; not applied, awaiting owner decision.
