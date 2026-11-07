@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "invariant-review",
+      "trigger": "PostFileSave",
+      "action": {
+        "type": "agent",
+        "prompt": "Check the saved file against .kiro/steering/security-invariants.md. Report any violation in one line each, or say OK. Do not change code."
+      },
+      "matcher": "backend[\\\\/]src[\\\\/]telepermit[\\\\/](engine\\.py|place\\.py|drivers[\\\\/][^\\\\/]+\\.py)$",
+      "enabled": true
+    }
+  ]
+}

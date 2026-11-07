@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "journal",
+      "trigger": "PostFileSave",
+      "action": {
+        "type": "agent",
+        "prompt": "Append one dated factual entry to docs/kiro-journal.md about what was just completed, including any property-test failure found. If nothing notable happened, add nothing."
+      },
+      "matcher": "docs[\\\\/]PROGRESS\\.md$",
+      "enabled": true
+    }
+  ]
+}

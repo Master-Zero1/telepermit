@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "fact-guard",
+      "trigger": "PostFileSave",
+      "action": {
+        "type": "agent",
+        "prompt": "List every Telescript claim in the saved file. Flag any claim that is not in .kiro/steering/telescript-facts.md, or an interpretation or design choice not labelled as such. Do not edit the file."
+      },
+      "matcher": "(README\\.md|docs[\\\\/][^\\\\/]+\\.md|frontend[\\\\/]src[\\\\/].*\\.tsx)$",
+      "enabled": true
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "property-guard",
+      "trigger": "PostFileSave",
+      "action": {
+        "type": "agent",
+        "prompt": "Run only the tests for the module that changed (pytest -q -x on the matching test file or properties file). If a property test fails, show the shrunk counterexample in 5 lines or fewer and suggest the smallest fix. Do not edit tests to make them pass."
+      },
+      "matcher": "backend[\\\\/]src[\\\\/]telepermit[\\\\/].*\\.py$",
+      "enabled": true
+    }
+  ]
+}

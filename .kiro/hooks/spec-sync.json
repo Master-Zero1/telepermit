@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "spec-sync",
+      "trigger": "PostFileSave",
+      "action": {
+        "type": "agent",
+        "prompt": "Check that design.md and tasks.md in the same spec folder still cover every numbered requirement. Report gaps in a short list. Do not edit."
+      },
+      "matcher": "\\.kiro[\\\\/]specs[\\\\/].*[\\\\/]requirements\\.md$",
+      "enabled": true
+    }
+  ]
+}
