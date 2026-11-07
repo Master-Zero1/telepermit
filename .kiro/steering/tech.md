@@ -24,3 +24,6 @@
 - Never start a long-running process (dev servers, watchers). Verify with one-shot commands: pytest, ruff, `npm run build`, `npm test`.
 - Never install global packages. Never run `sudo`.
 - Never commit `.env`, keys, `node_modules`, `.venv`, `frontend/dist`.
+
+## Environment
+Windows with PowerShell. Use PowerShell-compatible commands only; do not chain commands with &&; use forward slashes; quote paths that contain spaces.
