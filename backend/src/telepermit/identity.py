@@ -1,19 +1,25 @@
 """Signed Identity and the Authority that issues it (CONTRACTS section 3).
 
-Task 4 covers Identity, the canonical payload and Authority. verify_identity comes later.
+Identity, the canonical payload, Authority and verify_identity.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import NoReturn
+from typing import Final, NoReturn
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
+
+UNTRUSTED_AUTHORITY: Final = "UNTRUSTED_AUTHORITY"
+BAD_SIGNATURE: Final = "BAD_SIGNATURE"
+_SIGNATURE_LEN: Final = 64
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,3 +105,23 @@ class Authority:
 
     def __deepcopy__(self, memo: dict[int, object]) -> NoReturn:
         raise TypeError("Authority cannot be pickled or copied")
+
+
+def verify_identity(identity: Identity, trusted: Mapping[str, Ed25519PublicKey]) -> str | None:
+    """Return None if valid, UNTRUSTED_AUTHORITY if the authority is unknown, else BAD_SIGNATURE.
+
+    Never raises for any signature bytes. A signature that is not 64 bytes is rejected before
+    the library call, and the call itself can only fail with InvalidSignature or ValueError.
+    """
+    if identity.authority not in trusted:
+        return UNTRUSTED_AUTHORITY
+    if len(identity.signature) != _SIGNATURE_LEN:
+        return BAD_SIGNATURE
+    payload = _canonical_payload(
+        identity.agent_id, identity.agent_class, identity.authority, identity.issued_at
+    )
+    try:
+        trusted[identity.authority].verify(identity.signature, payload)
+    except (InvalidSignature, ValueError):
+        return BAD_SIGNATURE
+    return None

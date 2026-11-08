@@ -12,7 +12,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from telepermit.identity import Authority, Identity
+from telepermit.identity import Authority, Identity, verify_identity
 
 SEED = b"unit-test-seed"
 
@@ -112,3 +112,38 @@ def test_from_seed_matches_sha256_of_seed() -> None:
     assert actual.public_bytes(Encoding.Raw, PublicFormat.Raw) == expected.public_bytes(
         Encoding.Raw, PublicFormat.Raw
     )
+
+
+def test_verify_result_codes() -> None:
+    """Requirement 1.5: None if valid, UNTRUSTED_AUTHORITY if unknown, BAD_SIGNATURE otherwise."""
+    authority = Authority("home")
+    key = authority.public_key
+    trusted = {"home": key}
+    identity = authority.issue("agent-1", "bot", 1.0)
+
+    assert verify_identity(identity, trusted) is None
+    assert verify_identity(identity, {}) == "UNTRUSTED_AUTHORITY"
+    assert verify_identity(identity, {"other": key}) == "UNTRUSTED_AUTHORITY"
+
+    renamed = dataclasses.replace(identity, authority="other")
+    assert verify_identity(renamed, {"home": key, "other": key}) == "BAD_SIGNATURE"
+    assert verify_identity(renamed, trusted) == "UNTRUSTED_AUTHORITY"
+
+    tampered = dataclasses.replace(identity, agent_id="evil")
+    assert verify_identity(tampered, trusted) == "BAD_SIGNATURE"
+
+
+@pytest.mark.parametrize("length", [0, 1, 63, 65, 200])
+def test_wrong_length_signatures_bad_signature(length: int) -> None:
+    """Requirement 1.6: any signature length returns BAD_SIGNATURE and never raises."""
+    authority = Authority("home")
+    identity = authority.issue("agent-1", "bot", 1.0)
+    forged = dataclasses.replace(identity, signature=b"\x01" * length)
+    assert verify_identity(forged, {"home": authority.public_key}) == "BAD_SIGNATURE"
+
+
+def test_zero_signature_of_correct_length_bad_signature() -> None:
+    authority = Authority("home")
+    identity = authority.issue("agent-1", "bot", 1.0)
+    forged = dataclasses.replace(identity, signature=bytes(64))
+    assert verify_identity(forged, {"home": authority.public_key}) == "BAD_SIGNATURE"
