@@ -81,3 +81,52 @@ def test_permit_is_frozen() -> None:
     p = make()
     with pytest.raises(dataclasses.FrozenInstanceError):
         p.max_steps = 99  # type: ignore[misc]
+
+
+def test_narrowing_zero_and_equal_boundaries() -> None:
+    """Requirement 1.2: component-wise minimum and set intersection on known inputs."""
+    p = Permit(60.0, 30, 60, frozenset({"a", "b", "c"}))
+    c = Permit(40.0, 30, 40, frozenset({"b", "c", "d"}))
+    n = p.narrowed_by(c)
+    assert n == Permit(40.0, 30, 40, frozenset({"b", "c"}))
+    assert n is not p
+    assert n is not c
+    assert p == Permit(60.0, 30, 60, frozenset({"a", "b", "c"}))
+    assert c == Permit(40.0, 30, 40, frozenset({"b", "c", "d"}))
+
+    # equal to the limit stays equal; one over the limit is clamped
+    assert p.narrowed_by(p) == p
+    assert Permit(60.0, 31, 61, frozenset()).narrowed_by(p) == Permit(60.0, 30, 60, frozenset())
+
+    # zero ceiling fields give zero
+    zero = Permit(0.0, 0, 0, frozenset())
+    assert p.narrowed_by(zero) == zero
+
+    # disjoint action sets give an empty set
+    disjoint = Permit(60.0, 30, 60, frozenset({"x"}))
+    assert p.narrowed_by(disjoint).allowed_actions == frozenset()
+
+
+def test_to_json_shape_and_sorted_actions() -> None:
+    """Requirement 1.3: four keys, allowed_actions is a sorted list, from_json inverts."""
+    p = Permit(12.5, 3, 7, frozenset({"go:vault", "read_document", "a"}))
+    data = p.to_json()
+    assert set(data) == {"lifetime_s", "max_steps", "allowance", "allowed_actions"}
+    assert data["allowed_actions"] == ["a", "go:vault", "read_document"]
+    assert isinstance(data["allowed_actions"], list)
+    assert Permit.from_json(data) == p
+
+    empty = Permit(0.0, 0, 0, frozenset())
+    assert empty.to_json()["allowed_actions"] == []
+    assert Permit.from_json(empty.to_json()) == empty
+
+    unicode_permit = Permit(1.0, 1, 1, frozenset({"é", "日本", "z"}))
+    assert unicode_permit.to_json()["allowed_actions"] == sorted({"é", "日本", "z"})
+    assert Permit.from_json(unicode_permit.to_json()) == unicode_permit
+
+
+def test_from_json_missing_key_raises_key_error() -> None:
+    data = make().to_json()
+    del data["allowance"]
+    with pytest.raises(KeyError):
+        Permit.from_json(data)

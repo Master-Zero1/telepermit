@@ -1,12 +1,12 @@
 """Immutable Permit with validation (CONTRACTS section 2).
 
-Task 1.1 covers construction and validation only. Narrowing and JSON come later.
+Construction, validation, narrowing and JSON serialisation.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 
@@ -62,3 +62,31 @@ class Permit:
         object.__setattr__(self, "max_steps", max_steps)
         object.__setattr__(self, "allowance", allowance)
         object.__setattr__(self, "allowed_actions", actions)
+
+    def narrowed_by(self, ceiling: Permit) -> Permit:
+        """Return a new Permit no wider than self or ceiling on any field."""
+        return Permit(
+            lifetime_s=min(self.lifetime_s, ceiling.lifetime_s),
+            max_steps=min(self.max_steps, ceiling.max_steps),
+            allowance=min(self.allowance, ceiling.allowance),
+            allowed_actions=self.allowed_actions & ceiling.allowed_actions,
+        )
+
+    def to_json(self) -> dict[str, object]:
+        """Return a JSON-ready dict with allowed_actions as a sorted list."""
+        return {
+            "lifetime_s": self.lifetime_s,
+            "max_steps": self.max_steps,
+            "allowance": self.allowance,
+            "allowed_actions": sorted(self.allowed_actions),
+        }
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, object]) -> Permit:
+        """Inverse of to_json. Goes through the constructor, so it validates."""
+        return cls(
+            lifetime_s=data["lifetime_s"],  # type: ignore[arg-type]
+            max_steps=data["max_steps"],  # type: ignore[arg-type]
+            allowance=data["allowance"],  # type: ignore[arg-type]
+            allowed_actions=data["allowed_actions"],  # type: ignore[arg-type]
+        )
