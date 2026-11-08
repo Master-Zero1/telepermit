@@ -5,7 +5,7 @@ Last updated: 2026-11-07. Phase 0 (scaffold) done, committed locally, not pushed
 ## Phases
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
 - [x] Hooks created (docs/HOOKS.md): property-guard, invariant-review, fact-guard, spec-sync, journal (not yet committed)
-- [ ] Spec 1: permit + identity            folder: .kiro/specs/permit-identity  branch: spec/01-permit-identity (spec docs approved; task 1 / T1.1 done, next: task 2 / T1.2)
+- [ ] Spec 1: permit + identity            folder: .kiro/specs/permit-identity  branch: spec/01-permit-identity (spec docs approved; tasks 1-2 / T1.1-T1.2 done, next: task 3 / T1.3)
 - [ ] Spec 2: tools + places + admission   folder: ____  branch: ____
 - [ ] Spec 3: engine + metering + kill + audit  folder: ____  branch: ____
 - [ ] Spec 4: scenario + drivers + replays + CLI  folder: ____  branch: ____  (MILESTONE M1)
@@ -16,7 +16,7 @@ Last updated: 2026-11-07. Phase 0 (scaffold) done, committed locally, not pushed
 - [ ] Submitted (target Dec 3)
 
 ## Current spec tasks
-Spec 1 (permit-identity): [x] 1 T1.1 Permit | [ ] 2 T1.2 narrowed_by | [ ] 3 T1.3 JSON | [ ] 4 T1.4 Authority+Identity | [ ] 5 T1.5 verify_identity | [ ] 6 final checkpoint
+Spec 1 (permit-identity): [x] 1 T1.1 Permit | [x] 2 T1.2 narrowed_by | [ ] 3 T1.3 JSON | [ ] 4 T1.4 Authority+Identity | [ ] 5 T1.5 verify_identity | [ ] 6 final checkpoint
 
 ## Decisions and deviations
 (agent logs any approved deviation from CONTRACTS.md or BUILD_PLAN.md, with date)
