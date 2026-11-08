@@ -64,24 +64,24 @@ All seven property tests are required. Each property test docstring has the form
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 1.2_
 
-- [ ] 3. T1.3 Permit JSON serialisation
+- [x] 3. T1.3 Permit JSON serialisation
   - Depends on T1.1. Edge cases: empty action list; unicode action names; float precision for `lifetime_s`.
   - _Requirements: 1.3_
 
-  - [ ] 3.1 Write the JSON unit test first
+  - [x] 3.1 Write the JSON unit test first
     - Files: `backend/tests/unit/test_permit.py`.
     - Write `test_to_json_shape_and_sorted_actions`: exactly the four keys, `allowed_actions` is a sorted list, empty list case, unicode names, missing key in `from_json` raises KeyError.
     - Run `uv --directory backend run pytest -q tests/unit/test_permit.py` and confirm the new test fails because `to_json` does not exist.
     - _Requirements: 1.3_
 
-  - [ ] 3.2 Write property test P1.3 (JSON round trip)
+  - [x] 3.2 Write property test P1.3 (JSON round trip)
     - Files: `backend/tests/properties/test_permit_properties.py`.
     - Test function `test_p1_3_json_round_trip`. Include a pass through `json.dumps` and `json.loads`, and text strategies that cover unicode action names. Docstring: "Property P1.3: Permit.from_json(p.to_json()) equals p, also through json.dumps and json.loads. Validates: Requirements 1.3".
     - Run `uv --directory backend run pytest -q tests/properties/test_permit_properties.py` and confirm the new test fails because `to_json` does not exist.
     - **Property 3: P1.3 Permit JSON round trip**
     - **Validates: Requirements 1.3**
 
-  - [ ] 3.3 Implement to_json and from_json and make the tests pass
+  - [x] 3.3 Implement to_json and from_json and make the tests pass
     - Files: `backend/src/telepermit/permit.py`. `from_json` goes through the constructor so it gets the same validation.
     - Run `uv --directory backend run pytest -q tests/unit/test_permit.py`
     - Run `uv --directory backend run pytest -q tests/properties/test_permit_properties.py`
@@ -90,11 +90,11 @@ All seven property tests are required. Each property test docstring has the form
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 1.3_
 
-- [ ] 4. T1.4 Authority and Identity
+- [x] 4. T1.4 Authority and Identity
   - Depends on T0.2 only. Edge cases: deterministic seeded keys; the `from_seed` docstring says "DEMO ONLY"; `repr(authority)` leaks no key material.
   - _Requirements: 1.4, 1.7, 1.8_
 
-  - [ ] 4.1 Write the Authority and Identity unit tests first
+  - [x] 4.1 Write the Authority and Identity unit tests first
     - Files: `backend/tests/unit/test_identity.py` (new).
     - Write `test_signature_hex_length`: `issue(...)` returns an Identity whose `signature_hex` is 128 hex chars and whose signature is 64 bytes.
     - Write `test_issue_signs_canonical_payload`: the signature validates against the canonical payload with the Authority's public key, using the `cryptography` library directly.
@@ -105,14 +105,14 @@ All seven property tests are required. Each property test docstring has the form
     - Run `uv --directory backend run pytest -q tests/unit/test_identity.py` and confirm it fails because `telepermit.identity` cannot be imported.
     - _Requirements: 1.4, 1.7, 1.8_
 
-  - [ ] 4.2 Write property test P1.7 (seeded determinism)
+  - [x] 4.2 Write property test P1.7 (seeded determinism)
     - Files: `backend/tests/properties/test_identity_properties.py` (new). Define the shared strategies here (agent fields, issued_at floats, seed bytes).
     - Test function `test_p1_7_seeded_determinism`. Docstring: "Property P1.7: same seed gives identical signatures and equal public keys; different seeds give different public keys. Validates: Requirements 1.8".
     - Run `uv --directory backend run pytest -q tests/properties/test_identity_properties.py` and confirm it fails because `telepermit.identity` cannot be imported.
     - **Property 7: P1.7 Seeded determinism**
     - **Validates: Requirements 1.8**
 
-  - [ ] 4.3 Implement Identity, Authority and the canonical payload helper
+  - [x] 4.3 Implement Identity, Authority and the canonical payload helper
     - Files: `backend/src/telepermit/identity.py` (new). Start with `from __future__ import annotations` and a docstring naming CONTRACTS section 3. Define the `Identity` dataclass with `signature_hex`, the single `_canonical_payload` helper, and `Authority` with a private slot for the key, `from_seed` (sha256 of the seed, docstring and class docstring containing "DEMO ONLY"), `public_key`, `issue`, `repr` and `str` without key material, and `TypeError` for pickle and copy.
     - Run `uv --directory backend run pytest -q tests/unit/test_identity.py`
     - Run `uv --directory backend run pytest -q tests/properties/test_identity_properties.py`
