@@ -31,31 +31,31 @@ All seven property tests are required. Each property test docstring has the form
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 1.1_
 
-- [ ] 2. T1.2 narrowed_by
+- [x] 2. T1.2 narrowed_by
   - Depends on T1.1. Edge cases: disjoint action sets give empty; identical permits give an equal result; a ceiling with zero fields.
   - _Requirements: 1.2_
 
-  - [ ] 2.1 Write the narrowing unit tests first
+  - [x] 2.1 Write the narrowing unit tests first
     - Files: `backend/tests/unit/test_permit.py`.
     - Write `test_narrowing_zero_and_equal_boundaries`: known inputs with expected output, values equal to the ceiling stay equal, one over the ceiling is clamped, zero ceiling fields give zero, disjoint actions give an empty set, identical permits give an equal result, inputs are not mutated.
     - Run `uv --directory backend run pytest -q tests/unit/test_permit.py` and confirm the new test fails because `narrowed_by` does not exist.
     - _Requirements: 1.2_
 
-  - [ ] 2.2 Write property test P1.1 (narrowing never widens)
+  - [x] 2.2 Write property test P1.1 (narrowing never widens)
     - Files: `backend/tests/properties/test_permit_properties.py` (new). Define the shared Permit strategy here (include zero values and empty action sets).
     - Test function `test_p1_1_narrowing_never_widens`. Docstring: "Property P1.1: every field of p.narrowed_by(c) is <= both inputs and the action set is a subset of both. Validates: Requirements 1.2".
     - Run `uv --directory backend run pytest -q tests/properties/test_permit_properties.py` and confirm it fails because `narrowed_by` does not exist.
     - **Property 1: P1.1 Narrowing never widens**
     - **Validates: Requirements 1.2**
 
-  - [ ] 2.3 Write property test P1.2 (narrowing is idempotent)
+  - [x] 2.3 Write property test P1.2 (narrowing is idempotent)
     - Files: `backend/tests/properties/test_permit_properties.py`.
     - Test function `test_p1_2_narrowing_idempotent`. Docstring: "Property P1.2: p.narrowed_by(c).narrowed_by(c) equals p.narrowed_by(c). Validates: Requirements 1.2".
     - Run `uv --directory backend run pytest -q tests/properties/test_permit_properties.py` and confirm it fails because `narrowed_by` does not exist.
     - **Property 2: P1.2 Narrowing is idempotent**
     - **Validates: Requirements 1.2**
 
-  - [ ] 2.4 Implement narrowed_by and make the tests pass
+  - [x] 2.4 Implement narrowed_by and make the tests pass
     - Files: `backend/src/telepermit/permit.py`. Component-wise minimum for the three numeric fields, set intersection for actions, returns a new Permit.
     - Run `uv --directory backend run pytest -q tests/unit/test_permit.py`
     - Run `uv --directory backend run pytest -q tests/properties/test_permit_properties.py`
