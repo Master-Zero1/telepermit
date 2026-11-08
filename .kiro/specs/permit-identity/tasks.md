@@ -10,12 +10,12 @@ All seven property tests are required. Each property test docstring has the form
 
 ## Tasks
 
-- [ ] 1. T1.1 Permit dataclass
+- [x] 1. T1.1 Permit dataclass
   - Note: the design's extra validation is part of this task and gets tests too: `bool` or `float` for `max_steps` and `allowance` raises TypeError, a bare `str` for `allowed_actions` raises TypeError, non-finite `lifetime_s` (NaN, infinity) raises ValueError, and an `int` `lifetime_s` is coerced to float. The design's pickle and copy TypeError belongs to the Authority and is covered in task 4.
   - Edge cases: zero values are valid; empty `allowed_actions`; int vs float `lifetime_s`.
   - _Requirements: 1.1_
 
-  - [ ] 1.1 Create the test folders and write the Permit unit tests first
+  - [x] 1.1 Create the test folders and write the Permit unit tests first
     - Files: `backend/tests/unit/test_permit.py` (new). Create `backend/tests/unit/` and `backend/tests/properties/`. No `__init__.py` is needed: the existing layout has a single top-level conftest and every test file name is unique.
     - Write `test_negative_values_raise_value_error` (each of `lifetime_s`, `max_steps`, `allowance` negative, one at a time, and the value just below zero).
     - Write `test_zero_limits_and_empty_actions_valid` (all zeros, empty `allowed_actions`, empty frozenset after coercion).
@@ -23,7 +23,7 @@ All seven property tests are required. Each property test docstring has the form
     - Run `uv --directory backend run pytest -q tests/unit/test_permit.py` and confirm it fails because `telepermit.permit` cannot be imported.
     - _Requirements: 1.1_
 
-  - [ ] 1.2 Implement Permit and make the tests pass
+  - [x] 1.2 Implement Permit and make the tests pass
     - Files: `backend/src/telepermit/permit.py` (new). Start with `from __future__ import annotations` and a docstring naming CONTRACTS section 2. Frozen, slotted dataclass with validation and coercion in `__post_init__` as in the design.
     - Run `uv --directory backend run pytest -q tests/unit/test_permit.py` and confirm green.
     - Run `uv --directory backend run ruff check .`
