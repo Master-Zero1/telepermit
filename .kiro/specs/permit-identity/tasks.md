@@ -121,39 +121,39 @@ All seven property tests are required. Each property test docstring has the form
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 1.4, 1.7, 1.8_
 
-- [ ] 5. T1.5 verify_identity
+- [x] 5. T1.5 verify_identity
   - Depends on T1.4. Edge cases: empty signature bytes; signature lengths 0 to 200; empty trusted map; authority name present but wrong key. Result codes are module constants defined once.
   - _Requirements: 1.4, 1.5, 1.6_
 
-  - [ ] 5.1 Write the verifier unit tests first
+  - [x] 5.1 Write the verifier unit tests first
     - Files: `backend/tests/unit/test_identity.py`.
     - Write `test_verify_result_codes`: a valid identity gives None, an unknown authority gives UNTRUSTED_AUTHORITY, an authority name changed to another name that is still in the map gives BAD_SIGNATURE, a tampered field gives BAD_SIGNATURE.
     - Write `test_wrong_length_signatures_bad_signature`: signature lengths 0, 1, 63, 65 and 200 each return BAD_SIGNATURE without raising, and a 64-byte signature of zeros does too.
     - Run `uv --directory backend run pytest -q tests/unit/test_identity.py` and confirm the new tests fail because `verify_identity` does not exist.
     - _Requirements: 1.5, 1.6_
 
-  - [ ] 5.2 Write property test P1.4 (tampering fails verification)
+  - [x] 5.2 Write property test P1.4 (tampering fails verification)
     - Files: `backend/tests/properties/test_identity_properties.py`.
     - Test function `test_p1_4_tampering_fails_verification`. Change one of `agent_id`, `agent_class`, `authority` (the new name must stay in the trust map under the same key) or `issued_at`, making sure the new value really differs, or flip one bit of the signature. The unmodified identity verifies as None. Docstring: "Property P1.4: changing any one field of a signed identity, or flipping any single bit of the signature, makes verification return BAD_SIGNATURE. Validates: Requirements 1.4, 1.5".
     - Run `uv --directory backend run pytest -q tests/properties/test_identity_properties.py` and confirm it fails because `verify_identity` does not exist.
     - **Property 4: P1.4 Any change to an identity or its signature fails verification**
     - **Validates: Requirements 1.4, 1.5**
 
-  - [ ] 5.3 Write property test P1.5 (wrong key and empty trust map)
+  - [x] 5.3 Write property test P1.5 (wrong key and empty trust map)
     - Files: `backend/tests/properties/test_identity_properties.py`.
     - Test function `test_p1_5_wrong_key_and_empty_trust`. Docstring: "Property P1.5: a valid identity verified against a different key under the same authority name returns BAD_SIGNATURE; against an empty trust map returns UNTRUSTED_AUTHORITY. Validates: Requirements 1.5".
     - Run `uv --directory backend run pytest -q tests/properties/test_identity_properties.py` and confirm it fails because `verify_identity` does not exist.
     - **Property 5: P1.5 Wrong key and empty trust map**
     - **Validates: Requirements 1.5**
 
-  - [ ] 5.4 Write property test P1.6 (verification never raises)
+  - [x] 5.4 Write property test P1.6 (verification never raises)
     - Files: `backend/tests/properties/test_identity_properties.py`.
     - Test function `test_p1_6_verify_never_raises`: arbitrary signature bytes of length 0 to 200; result is one of None, UNTRUSTED_AUTHORITY or BAD_SIGNATURE, and anything other than the genuine signature gives BAD_SIGNATURE. Docstring: "Property P1.6: verification never raises for arbitrary signature bytes of length 0 to 200. Validates: Requirements 1.6".
     - Run `uv --directory backend run pytest -q tests/properties/test_identity_properties.py` and confirm it fails because `verify_identity` does not exist.
     - **Property 6: P1.6 Verification never raises**
     - **Validates: Requirements 1.6**
 
-  - [ ] 5.5 Implement verify_identity and make the tests pass
+  - [x] 5.5 Implement verify_identity and make the tests pass
     - Files: `backend/src/telepermit/identity.py`. Decision order as in the design: unknown authority first, then length check (64), then `verify` inside a `try` that catches only `InvalidSignature` and `ValueError`. No bare `except`. Constants `UNTRUSTED_AUTHORITY` and `BAD_SIGNATURE` defined once.
     - Run `uv --directory backend run pytest -q tests/unit/test_identity.py`
     - Run `uv --directory backend run pytest -q tests/properties/test_identity_properties.py`
@@ -162,7 +162,7 @@ All seven property tests are required. Each property test docstring has the form
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 1.4, 1.5, 1.6_
 
-- [ ] 6. Final checkpoint - Ensure all tests pass
+- [x] 6. Final checkpoint - Ensure all tests pass
   - Run `uv --directory backend run pytest -q` and confirm every unit test and all seven properties (P1.1 to P1.7) pass.
   - Run `uv --directory backend run ruff check .`
   - Run `uv --directory backend run ruff format --check .`
