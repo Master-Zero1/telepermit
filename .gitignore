@@ -17,3 +17,5 @@ frontend/dist/
 
 # os
 .DS_Store
+
+*.tsbuildinfo
