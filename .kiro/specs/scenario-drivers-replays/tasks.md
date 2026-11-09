@@ -241,13 +241,13 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: the three files green, ruff clean, commit made.
     - _Requirements: 4.8, 4.9_
 
-- [ ] 7. T4.6 part 2: recorder and the two Milestone M1 replays
+- [x] 7. T4.6 part 2: recorder and the two Milestone M1 replays
   - Depends on task 6. Builds `scripts/record_replays.py` and `tests/test_replays.py`, and commits the generated files `index.json`, `poisoned-briefing-enforced.json` and `poisoned-briefing-unenforced.json`. In this task the recorder writes ONLY the enforced (Run B) and unenforced (Run A) replays and then `index.json` LAST; the forged replay is task 8. Milestone M1 is recorded over THESE two replays.
   - Acceptance: recording twice gives byte-identical files and `git status --short -- frontend/public/replays` prints nothing after the second run.
   - Edge cases: no CR byte, exactly one trailing LF, pure ASCII; no key hex in any file; the labels in the files and the index equal the driver actually used; `generated_by` is the recorder literal.
   - _Requirements: 4.8, 4.9_
 
-  - [ ] 7.1 Write the replay file tests first
+  - [x] 7.1 Write the replay file tests first
     - Files: `backend/tests/test_replays.py` (new).
     - A helper inside the test file loads `scripts/record_replays.py` with `importlib.util.spec_from_file_location` AT CALL TIME (inside each test), so the red state is a per-test `FileNotFoundError` and not a collection error. Paths come from the test file location.
     - Tests: `test_m1_replays_present` (reads `index.json` and the two M1 files with `read_bytes()`), `test_committed_files_match_fresh_recording`, `test_p4_4_recording_twice_is_byte_identical` (two temporary directories; the same file names in the same order; identical bytes; no CR byte; ends with exactly one LF; pure ASCII; docstring "Property P4.4: recording twice gives byte-identical files. Validates: Requirements 4.8"), `test_every_replay_schema_and_contiguous_seq` (loops over the entries of the committed index INSIDE the test, so a missing index fails the test and not the collection), `test_reduce_events_equals_last_snapshot`, `test_golden_facts_run_b` and `test_golden_facts_run_a` (written independently in the test), `test_index_matches_files` (no exact entry count: the ids start with the two M1 ids in order and every entry has a file that exists), `test_labels_match_driver_in_files_and_index`, `test_generated_by_is_recorder_literal`, `test_no_key_hex_in_any_file` (`sha256(DEMO_SEED).digest().hex()`; it reads `index.json` first, scans the index and every file the index lists, and asserts that the two M1 files are among them, so it can never pass on an empty folder).
@@ -258,13 +258,13 @@ Conventions that apply to every file written in this spec:
     - **Validates: Requirements 4.8**
     - _Requirements: 4.8, 4.9_
 
-  - [ ] 7.2 Implement the recorder
+  - [x] 7.2 Implement the recorder
     - Files: `scripts/record_replays.py` (new).
     - Docstring naming CONTRACTS section 10. `REPO_ROOT = Path(__file__).resolve().parents[1]`, `REPLAY_DIR = REPO_ROOT / "frontend" / "public" / "replays"`. `record_all(output_dir) -> list[Path]` runs the scripted recordings enforced (Run B) then unenforced (Run A), writes `<id>.json` for each and `index.json` LAST, creates the directory if missing, deletes nothing, and returns the paths in that order. Metas use `generated_by = GENERATED_BY_RECORDER`; index entries are `{id, title, file, driver, enforce}` taken from the metas. `main(argv=None) -> int` with an optional `--output-dir` (default `REPLAY_DIR`) prints one `wrote <path>` line per file and returns 0. Files are written with `write_json` (UTF-8, LF). No network, clock or randomness.
     - Acceptance check: the module imports without side effects; the next sub-task generates the files.
     - _Requirements: 4.8, 4.9_
 
-  - [ ] 7.3 Generate the replays and make the tests pass
+  - [x] 7.3 Generate the replays and make the tests pass
     - Files: `frontend/public/replays/index.json`, `frontend/public/replays/poisoned-briefing-enforced.json`, `frontend/public/replays/poisoned-briefing-unenforced.json` (generated).
     - Run `uv --directory backend run python ../scripts/record_replays.py`
     - Expected: three `wrote ...` lines, the index last.
@@ -275,7 +275,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: the replay tests are green and ruff is clean with the scripts form.
     - _Requirements: 4.8, 4.9_
 
-  - [ ] 7.4 Commit the recorder, its tests and the generated data files
+  - [x] 7.4 Commit the recorder, its tests and the generated data files
     - Run `git status --short`
     - Run `git add scripts/record_replays.py backend/tests/test_replays.py`
     - Run `git add frontend/public/replays/index.json frontend/public/replays/poisoned-briefing-enforced.json frontend/public/replays/poisoned-briefing-unenforced.json`
@@ -283,7 +283,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: the commit contains exactly those five files.
     - _Requirements: 4.8_
 
-  - [ ] 7.5 Confirm that recording is deterministic
+  - [x] 7.5 Confirm that recording is deterministic
     - Run `uv --directory backend run python ../scripts/record_replays.py`
     - Run `git status --short -- frontend/public/replays`
     - Expected: the second command prints nothing. Print the DONE line for task 7. State in the report that Milestone M1 is recorded over the enforced and unenforced replays.
