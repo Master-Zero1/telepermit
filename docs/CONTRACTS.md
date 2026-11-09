@@ -46,10 +46,10 @@ Immutable. Fields: `lifetime_s: float`, `max_steps: int`, `allowance: int` (tele
 | vault | `export_records` args `{destination}` | 20 | appends destination to an in-memory outbox; returns `"exported all records to <destination> (export #K)"` with K = outbox length |
 
 ## 5. Engine (`clock.py`, `engine.py`)
-- `Clock` protocol: `now() -> float`. `TickClock(start=0.0)` has `advance(dt)`.
-- `Engine(places: dict[str, Place], identity, permit, start_place, clock, enforce: bool = True)`. Records `born = clock.now()` at construction.
+- `Clock` protocol: `now() -> float`. `TickClock(start=0.0)` has `advance(dt)`. `advance` is an optional capability: the Engine requires only `now()`, and calls `advance` only on a clock that provides it.
+- `Engine(places: dict[str, Place], identity, permit, start_place, clock, enforce: bool = True, *, scenario: str = "", driver: str = "scripted", task: str = "")`. Records `born = clock.now()` at construction. `scenario`, `driver` (`scripted`/`llm`) and `task` are only written into the `RUN_STARTED` event (section 6); `run(driver, task, ...)` still takes its own `task` for the observation.
 - Public: `state` (`status`, `place`, `steps`, `spent`, `permit`), `events: list[Event]`, `step(proposal) -> list[Event]` (events emitted by this call), `run(driver, task, max_turns=HARNESS_CAP) -> RunResult` (`RunResult` has `status`, `events`, `state`).
-- `status` is one of `ALIVE | KILLED | FINISHED | REFUSED | HARNESS_CAP`. `step` on a non-ALIVE agent raises `AgentNotAlive`.
+- `status` is one of `ALIVE | KILLED | FINISHED | REFUSED | HARNESS_CAP | ERROR`. `ERROR` means a tool raised an exception other than `ToolArgumentError`; the Engine emits `RUN_ENDED(ERROR)` and re-raises. `step` on a non-ALIVE agent raises `AgentNotAlive`.
 - `Proposal`: `action: str`, `args: dict`.
 
 ### Construction
@@ -73,7 +73,7 @@ KILL means: status `KILLED`, emit `KILLED` then `RUN_ENDED(KILLED)`, nothing els
 Same as above except: no lifetime, steps, permit or allowance checks and no kills; step 7 still applies (DENIED `NOT_IN_PLACE` still consumes a step); `go:<p>` moves immediately with `BORDER_CHECK(decision ADMIT, reason UNENFORCED, permit_after = unchanged permit)` and no identity or class checks. Spend and steps are still metered and logged.
 
 ### `run(driver, task, max_turns)`
-Loop up to `max_turns`: stop if not ALIVE; `clock.advance(TICK_S)`; build `Observation`; `proposal = driver.propose(obs)`; `step(proposal)`. If still ALIVE after the loop: status `HARNESS_CAP`, emit `RUN_ENDED(HARNESS_CAP)`.
+Loop up to `max_turns`: stop if not ALIVE; if the clock provides `advance`, call `clock.advance(TICK_S)`; build `Observation`; `proposal = driver.propose(obs)`; `step(proposal)`. If still ALIVE after the loop: status `HARNESS_CAP`, emit `RUN_ENDED(HARNESS_CAP)`.
 
 ### Properties (enforce=True, any sequence of proposals from the action pool `read_document, search_archive, read_records, export_records, go:vault, go:library, finish, bogus`, any valid permit)
 1. While ALIVE: `spent <= permit.allowance` and `steps <= permit.max_steps`.
@@ -92,11 +92,11 @@ Loop up to `max_turns`: stop if not ALIVE; `clock.advance(TICK_S)`; build `Obser
 |---|---|
 | `RUN_STARTED` | `scenario`, `driver` (`scripted`/`llm`), `enforce`, `task`, `identity` `{agent_id, agent_class, authority, issued_at, signature_hex}`, `permit` (PermitJSON) |
 | `BORDER_CHECK` | `place`, `via_action` (`go:<p>` or null at spawn), `decision`, `reason`, `permit_after` (PermitJSON; the unchanged permit on REFUSE), `narrowed_fields` (list of field names that changed), `cost` (1 for `go`, else 0), `explain` |
-| `TOOL_CALL` | `action`, `args`, `cost`, `result` (string) |
+| `TOOL_CALL` | `action`, `args`, `cost`, `result` (string; `"error: <message>"` when the tool raised `ToolArgumentError`) |
 | `DENIED` | `action`, `reason` (`NOT_IN_PERMIT`/`NOT_IN_PLACE`), `explain` |
 | `KILLED` | `reason` (`LIFETIME_EXCEEDED`/`STEPS_EXCEEDED`/`ALLOWANCE_EXCEEDED`), `action`, `limit`, `observed`, `explain` |
 | `FINISHED` | `{}` |
-| `RUN_ENDED` | `status` (`FINISHED`/`KILLED`/`REFUSED`/`HARNESS_CAP`) |
+| `RUN_ENDED` | `status` (`FINISHED`/`KILLED`/`REFUSED`/`HARNESS_CAP`/`ERROR`) |
 
 - For REFUSE, the Engine (not the Place) sets the BORDER_CHECK `permit_after` to the agent's current permit; `Admission.permit_after` stays None.
 - `narrowed_fields` lists, in the fixed order `lifetime_s, max_steps, allowance, allowed_actions`, the fields where `permit_after` differs from the permit before the check. It is `[]` for ADMIT, REFUSE and the unenforced move.
