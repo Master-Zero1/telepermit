@@ -47,7 +47,7 @@ Immutable. Fields: `lifetime_s: float`, `max_steps: int`, `allowance: int` (tele
 
 ## 5. Engine (`clock.py`, `engine.py`)
 - `Clock` protocol: `now() -> float`. `TickClock(start=0.0)` has `advance(dt)`.
-- `Engine(places: dict[str, Place], identity, permit, start_place, clock, enforce: bool = True)`. Records `born = clock.now()` at construction.
+- `Engine(places: dict[str, Place], identity, permit, start_place, clock, enforce: bool = True, *, scenario: str = "", driver: str = "scripted", task: str = "")`. Records `born = clock.now()` at construction. `scenario`, `driver` (`scripted`/`llm`) and `task` are only written into the `RUN_STARTED` event (section 6); `run(driver, task, ...)` still takes its own `task` for the observation.
 - Public: `state` (`status`, `place`, `steps`, `spent`, `permit`), `events: list[Event]`, `step(proposal) -> list[Event]` (events emitted by this call), `run(driver, task, max_turns=HARNESS_CAP) -> RunResult` (`RunResult` has `status`, `events`, `state`).
 - `status` is one of `ALIVE | KILLED | FINISHED | REFUSED | HARNESS_CAP`. `step` on a non-ALIVE agent raises `AgentNotAlive`.
 - `Proposal`: `action: str`, `args: dict`.
