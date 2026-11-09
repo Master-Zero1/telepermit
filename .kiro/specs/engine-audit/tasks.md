@@ -324,12 +324,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: all nine properties and the unit tests green, the `NotImplementedError` search above prints nothing, ruff clean, commit made.
     - _Requirements: 3.10_
 
-- [ ] 7. T3.7 Engine run() loop
+- [x] 7. T3.7 Engine run() loop
   - Depends on T3.5 and T3.6. Adds `run(driver, task, max_turns=HARNESS_CAP)`, the private `_observe` and `_last_result`, and the task consistency check of criterion 3.15 (a non-empty constructor `task` must equal the `task` given to `run`). In Group A `run` calls `clock.advance(TICK_S)` unconditionally (the current CONTRACTS text). Acceptance: a 30-turn run with `TICK_S` leaves a `TickClock` at exactly 30.0.
   - Edge cases: `max_turns` 0 gives HARNESS_CAP at once with no driver call and no clock advance; the agent finishes mid-loop; an Engine that is already REFUSED returns REFUSED without calling the driver; a negative `max_turns` raises `ValueError`; turns are numbered from 1; a `run` task that differs from a non-empty constructor task raises `ValueError` before anything happens, and an empty constructor task accepts any task.
   - _Requirements: 3.12, 3.10, 3.11, 3.15_
 
-  - [ ] 7.1 Write the run loop unit tests first
+  - [x] 7.1 Write the run loop unit tests first
     - Files: `backend/tests/unit/test_engine.py` (append; keep earlier tests). The replay driver class is defined INSIDE this file, not under `drivers/`: it returns a list of `Proposal` objects in order, repeats the last one, and records every `Observation` it receives.
     - `test_run_thirty_turns_clock_at_thirty` (a never-finishing driver; status HARNESS_CAP; `TickClock.now() == 30.0`).
     - `test_run_max_turns_zero_is_harness_cap` (no driver call, no clock advance, `RUN_ENDED(HARNESS_CAP)` emitted once).
@@ -352,7 +352,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: every new test fails with that AttributeError. This includes the four criterion 3.15 tests, which are red here only because `run` does not exist. Sub-task 7.2 shows them red for the right reason before the check is added.
     - _Requirements: 3.12, 3.10, 3.11, 3.15_
 
-  - [ ] 7.2 Implement run, _observe and _last_result and make the tests pass
+  - [x] 7.2 Implement run, _observe and _last_result and make the tests pass
     - Files: `backend/src/telepermit/engine.py`.
     - Step 1 (right-reason red for criterion 3.15): implement `run`, `_observe` and `_last_result` WITHOUT the task consistency check.
     - Run `uv --directory backend run pytest -q tests/unit/test_engine.py`
