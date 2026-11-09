@@ -184,13 +184,13 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: both files green, ruff clean, commit made.
     - _Requirements: 4.5, 4.6_
 
-- [ ] 5. T4.5 CLI core
+- [x] 5. T4.5 CLI core
   - Depends on T4.2 and T4.4. Builds `cli.py` with `main`, `format_timeline`, exit codes 0, 1 and 2, the environment check before any import of `anthropic`, and sanitised ASCII one-line summaries. The `--out` option is NOT added in this task (it is gated, task 11): the parser has no `--out`.
   - Acceptance: `--enforce on` ends `status: KILLED` with `outbox: 0`; `--enforce off` ends `status: HARNESS_CAP` with `outbox: 2`; a missing `AGENT_MODEL` or `ANTHROPIC_API_KEY` names the variable only and builds no client.
   - Edge cases: a blank variable counts as missing; the scripted driver never reads the environment; a scripted run exception is not caught; an llm abort prints the exception type name only and never the API key; the model name comes only from `AGENT_MODEL`.
   - _Requirements: 4.6, 4.7, 4.9_
 
-  - [ ] 5.1 Write the CLI unit tests first, with their own inline network guard
+  - [x] 5.1 Write the CLI unit tests first, with their own inline network guard
     - Files: `backend/tests/unit/test_cli.py` (new).
     - The inline autouse guard `network_calls` and the proving test `test_network_guard_blocks_connections` are defined exactly as in sub-task 4.1 (teardown fails the test if the list is not empty; the proving test clears the list in a `finally` block, as in sub-task 4.1).
     - Tests call `main()` with injected `env`, `out` and `err` (no subprocess). Names: `test_enforce_on_ends_killed`, `test_enforce_off_ends_harness_cap`, `test_timeline_header_and_columns`, `test_summary_is_one_line` (hostile text with newlines and non-ASCII), `test_summary_truncated` (at most 72 characters ending `...`), `test_usage_errors_return_2`, `test_scripted_run_exception_is_not_caught`, `test_llm_missing_env_names_only`, `test_llm_blank_env_counts_as_missing`, `test_llm_missing_env_builds_no_client` (monkeypatch `telepermit.cli.build_client` to fail the test if called), `test_llm_extra_missing_returns_1`, `test_model_comes_from_env_only`, `test_scripted_driver_ignores_env`, `test_llm_run_with_fake_client_is_labelled_llm` (a fake client whose first response is a `finish` tool_use; the timeline shows driver `llm`), `test_llm_abort_prints_type_only` (a fake client that raises an error whose message contains the API key value; the key must not appear in out or err), `test_output_has_no_key_material` (private-key hex of the demo seed and the API key value), `test_network_guard_blocks_connections`.
@@ -199,7 +199,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: collection error with exactly that message.
     - _Requirements: 4.6, 4.7, 4.9_
 
-  - [ ] 5.2 Implement cli.py and make the tests pass
+  - [x] 5.2 Implement cli.py and make the tests pass
     - Files: `backend/src/telepermit/cli.py` (new).
     - Docstring naming CONTRACTS section 10. `main(argv=None, *, env=None, out=None, err=None) -> int` and `format_timeline(events) -> list[str]`, argparse with `prog="telepermit"`, subcommand `run`, positional scenario with choices `["poisoned_briefing"]`, `--enforce` (required, `on|off`), `--driver` (`scripted|llm`, default `scripted`) and NO `--out`. A `SystemExit` from argparse is turned into the return value. Exit codes: 0 for a final status, 1 for configuration or runtime problems, 2 for usage errors. For `--driver llm`: read `AGENT_MODEL` and `ANTHROPIC_API_KEY` from `env`, list missing or blank ones by name only, return 1 before any import of `anthropic`; then `build_client` (imported by name so tests can replace `telepermit.cli.build_client`), then `LLMDriver`. A scripted run exception is not caught; any `Exception` from an llm run gives `error: run aborted: <ExceptionType> (details withheld; see docs)` and return 1. Timeline header and line formats and per-type summaries as in design.md, each summary sanitised to one ASCII line and truncated to 72 characters with `...`. After the timeline print `status: <STATUS>` and `outbox: <n>`. `print` is allowed here only.
     - Run `uv --directory backend run pytest -q tests/unit/test_cli.py`
