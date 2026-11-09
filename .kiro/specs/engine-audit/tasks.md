@@ -505,12 +505,12 @@ Group B implements the approved decisions (a) tool errors and (d) conditional cl
     - Acceptance check: `test_engine.py` green including the 30-turn clock test, ruff clean, commit made.
     - _Requirements: 3.12_
 
-- [ ] 13. Widen the property generators
+- [x] 13. Widen the property generators
   - Blocked until the owner confirms task 10.
   - Tests-only task. In Group A the args strategy drew from the required-keys table because a missing key would have raised an unhandled `ToolArgumentError`. With task 11 in place a missing key becomes a `TOOL_CALL` with an `error:` result, so the strategy can be widened.
   - _Requirements: 3.1, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.14_
 
-  - [ ] 13.1 Replace the args strategy with random dicts and re-run P3.1 to P3.9
+  - [x] 13.1 Replace the args strategy with random dicts and re-run P3.1 to P3.9
     - Blocked until the owner confirms task 10.
     - Files: `backend/tests/properties/test_engine_properties.py`.
     - Change the shared args strategy from the required-keys table to random dicts: keys drawn from `name`, `query`, `destination` and arbitrary text, values arbitrary text, missing keys allowed. No property assertion is changed or weakened.
