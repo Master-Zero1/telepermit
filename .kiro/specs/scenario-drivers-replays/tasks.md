@@ -290,12 +290,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: empty git status for the replay folder.
     - _Requirements: 4.8_
 
-- [ ] 8. T4.7 Forged-identity replay
+- [x] 8. T4.7 Forged-identity replay
   - Depends on task 7. Optional for acceptance and NOT counted toward Milestone M1, but still a required task of this spec. Its tests carry `forged` in their names so `uv --directory backend run pytest -q tests/test_replays.py -k forged` is its own check. The recorder gains a third recording; the order stays enforced, unenforced, forged, with the index last.
   - Acceptance: the forged replay has exactly the three Run C events and the index lists it after the two M1 replays.
   - _Requirements: 4.4, 4.8, 4.9_
 
-  - [ ] 8.1 Write the forged replay tests first
+  - [x] 8.1 Write the forged replay tests first
     - Files: `backend/tests/test_replays.py` (append; keep earlier tests).
     - Tests: `test_forged_replay_golden` (3 events `RUN_STARTED`, `BORDER_CHECK` at library with decision `REFUSE` and reason `BAD_SIGNATURE`, `RUN_ENDED` with status `REFUSED`; `signature_hex` is 128 zeros; meta `enforce` true, `driver` scripted, id `forged-identity-refused`), `test_forged_replay_in_index_after_the_m1_replays` (reads the committed `index.json` and asserts `[entry["id"] for entry in index["replays"]] == ["poisoned-briefing-enforced", "poisoned-briefing-unenforced", "forged-identity-refused"]`), `test_forged_replay_is_written_before_the_index` (asserts `[path.name for path in record_all(tmp_path)] == ["poisoned-briefing-enforced.json", "poisoned-briefing-unenforced.json", "forged-identity-refused.json", "index.json"]`), `test_forged_replay_labels`.
     - Run `uv --directory backend run pytest -q tests/test_replays.py -k forged`
@@ -303,13 +303,13 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: the four forged tests fail for those two reasons and the other tests stay green.
     - _Requirements: 4.4, 4.8, 4.9_
 
-  - [ ] 8.2 Extend the recorder with the third recording
+  - [x] 8.2 Extend the recorder with the third recording
     - Files: `scripts/record_replays.py`.
     - Add the forged recording (`run_scenario(enforce=True, forged=True)`) after the two M1 recordings and before `index.json`, with its index entry after the two M1 entries.
     - Acceptance check: the module still imports; the next sub-task generates the file.
     - _Requirements: 4.4, 4.8_
 
-  - [ ] 8.3 Generate, verify and commit the forged replay
+  - [x] 8.3 Generate, verify and commit the forged replay
     - Files: `frontend/public/replays/forged-identity-refused.json` (generated), `frontend/public/replays/index.json` (changed).
     - Run `uv --directory backend run python ../scripts/record_replays.py`
     - Run `uv --directory backend run pytest -q tests/test_replays.py -k forged`
