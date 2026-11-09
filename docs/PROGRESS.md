@@ -6,7 +6,7 @@ Last updated: 2026-11-08. Phase 0 and Spec 1 done; main and tag spec-01-done pus
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
 - [x] Hooks created (docs/HOOKS.md): property-guard, invariant-review, fact-guard, spec-sync, journal (not yet committed)
 - [x] Spec 1: permit + identity            folder: .kiro/specs/permit-identity  branch: spec/01-permit-identity (all 6 tasks done, 49 tests green, ruff clean; merged to main with --no-ff, tagged spec-01-done, not pushed)
-- [ ] Spec 2: tools + places + admission   folder: .kiro/specs/tools-places-admission  branch: spec/02-tools-places-admission (spec docs approved; tasks 1-2 / T2.1-T2.2 done, next: task 3 / T2.3; baseline 49 tests)
+- [x] Spec 2: tools + places + admission   folder: .kiro/specs/tools-places-admission  branch: spec/02-tools-places-admission (all 4 tasks done, 89 tests green (49 baseline + 40), ruff clean; merge to main + tag spec-02-done follow)
 - [ ] Spec 3: engine + metering + kill + audit  folder: ____  branch: ____
 - [ ] Spec 4: scenario + drivers + replays + CLI  folder: ____  branch: ____  (MILESTONE M1)
 - [ ] Spec 5: timeline UI                  folder: ____  branch: ____
@@ -16,7 +16,7 @@ Last updated: 2026-11-08. Phase 0 and Spec 1 done; main and tag spec-01-done pus
 - [ ] Submitted (target Dec 3)
 
 ## Current spec tasks
-Spec 2 (tools-places-admission): [x] 1 T2.1 models | [x] 2 T2.2 catalog | [ ] 3 T2.3 admit | [ ] 4 final checkpoint
+Spec 2 (tools-places-admission): [x] 1 T2.1 models | [x] 2 T2.2 catalog | [x] 3 T2.3 admit | [x] 4 final checkpoint
 Spec 1 (permit-identity): [x] 1 T1.1 Permit | [x] 2 T1.2 narrowed_by | [x] 3 T1.3 JSON | [x] 4 T1.4 Authority+Identity | [x] 5 T1.5 verify_identity | [x] 6 final checkpoint
 
 ## Decisions and deviations

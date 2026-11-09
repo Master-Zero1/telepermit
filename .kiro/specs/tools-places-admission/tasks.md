@@ -101,13 +101,13 @@ Conventions that apply to every file written in this spec:
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 2.1, 2.7_
 
-- [ ] 3. T2.3 Admission logic
+- [x] 3. T2.3 Admission logic
   - Depends on T2.1 and Spec 1. Builds `Place.admit(identity, permit, steps, spent, elapsed)` with the exact four-step order of CONTRACTS section 4: identity verification, class check, counters versus the narrowed permit (strict `>`), then ADMIT versus ADMIT_IMPOSED. Acceptance: untrusted authority gives REFUSE with that code; wrong class gives REFUSE CLASS_NOT_ALLOWED; counters exceeding the narrowed permit give REFUSE EXCEEDS_CEILING; narrowing changes nothing gives ADMIT; otherwise ADMIT_IMPOSED.
   - Edge cases: a counter exactly equal to its narrowed limit is admitted (`spent == allowance`, `steps == max_steps`, `elapsed == lifetime_s`); one over is refused; zero-limit ceilings; a REFUSE always has `permit_after` None; `admit` never raises for any signature bytes.
   - Note: 3.1 to 3.5 are red until 3.6 implements `admit`; `AttributeError` is expected until then.
   - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 3.1 Write the admit unit tests first
+  - [x] 3.1 Write the admit unit tests first
     - Files: `backend/tests/unit/test_place.py` (append; keep earlier tests).
     - Inline helpers: a fixed-seed `Authority.from_seed` (DEMO ONLY), a trusted map `{authority name: public key}`, a function that builds a Place with a chosen ceiling and `allowed_classes`, a function that builds an Identity with `Authority.issue`.
     - Write `test_untrusted_authority_refused` (authority not in `trusted`: REFUSE, `permit_after` None, reason equals `UNTRUSTED_AUTHORITY`) and `test_bad_signature_refused` (trusted authority name, tampered identity: REFUSE, reason equals `BAD_SIGNATURE`).
@@ -121,7 +121,7 @@ Conventions that apply to every file written in this spec:
     - Expected: the new tests fail with `AttributeError: 'Place' object has no attribute 'admit'`. The earlier tests in the file still pass.
     - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 3.2 Write property test P2.1 (permit_after is never wider)
+  - [x] 3.2 Write property test P2.1 (permit_after is never wider)
     - Files: `backend/tests/properties/test_place_properties.py` (new). Define the shared strategies here: Permit (include zero values and empty action sets), ceiling Permit, identity from a fixed-seed `Authority`, counters not above the narrowed limits.
     - Test function `test_p2_1_permit_after_never_wider`. For any admitted arrival, `permit_after` is not None and each of `lifetime_s`, `max_steps`, `allowance` is at most the minimum of the request and the ceiling, and `allowed_actions` is a subset of both. Tag with a comment `Feature: tools-places-admission, Property 1`.
     - Docstring: "Property P2.1: permit_after is never wider than the requested permit or the ceiling, on any field. Validates: Requirements 2.5, 2.6".
@@ -130,7 +130,7 @@ Conventions that apply to every file written in this spec:
     - **Property 1: P2.1 permit_after is never wider than the request or the ceiling**
     - **Validates: Requirements 2.5, 2.6**
 
-  - [ ] 3.3 Write property test P2.2 (bad identities and disallowed classes are refused)
+  - [x] 3.3 Write property test P2.2 (bad identities and disallowed classes are refused)
     - Files: `backend/tests/properties/test_place_properties.py`.
     - Test function `test_p2_2_bad_identity_or_class_refused`. Case one: an identity from an authority unknown to the Place, or with a corrupted signature or corrupted signed field, gives REFUSE, `permit_after` None, and `reason` equal to the code `verify_identity` returns for the same inputs. Case two: a validly signed identity from a trusted authority whose class is not in `allowed_classes` gives REFUSE with `CLASS_NOT_ALLOWED`. Make sure the corruption really changes the value.
     - Docstring: "Property P2.2: an identity with an unknown authority, a corrupted signature, or a disallowed class is always refused. Validates: Requirements 2.2, 2.3".
@@ -139,7 +139,7 @@ Conventions that apply to every file written in this spec:
     - **Property 2: P2.2 Bad identities and disallowed classes are always refused**
     - **Validates: Requirements 2.2, 2.3**
 
-  - [ ] 3.4 Write property test P2.3 (ADMIT if and only if narrowing changes nothing)
+  - [x] 3.4 Write property test P2.3 (ADMIT if and only if narrowing changes nothing)
     - Files: `backend/tests/properties/test_place_properties.py`.
     - Test function `test_p2_3_admit_iff_unchanged`. For an admitted arrival: the decision is ADMIT exactly when `permit.narrowed_by(ceiling) == permit`, with `permit_after` equal to `permit`; otherwise ADMIT_IMPOSED with `permit_after` equal to the narrowed permit. `reason` is `OK` in both cases. Generators must produce both outcomes, including a ceiling equal to the permit.
     - Docstring: "Property P2.3: ADMIT happens if and only if narrowing changes nothing; otherwise ADMIT_IMPOSED. Validates: Requirements 2.5, 2.6".
@@ -148,7 +148,7 @@ Conventions that apply to every file written in this spec:
     - **Property 3: P2.3 ADMIT if and only if narrowing changes nothing**
     - **Validates: Requirements 2.5, 2.6**
 
-  - [ ] 3.5 Write property test P2.4 (exceeded counters always refuse)
+  - [x] 3.5 Write property test P2.4 (exceeded counters always refuse)
     - Files: `backend/tests/properties/test_place_properties.py`.
     - Test function `test_p2_4_exceeded_counters_refused`. For a valid identity with an allowed class and counters where at least one of `spent`, `steps`, `elapsed` is strictly greater than the matching narrowed limit (`allowance`, `max_steps`, `lifetime_s`), the result is REFUSE, `permit_after` None, `reason` `EXCEEDS_CEILING`, never an admission. Also assert that counters equal to the limits are not refused.
     - Docstring: "Property P2.4: if counters exceed the narrowed limits the decision is REFUSE with EXCEEDS_CEILING, never an admission. Validates: Requirements 2.4".
@@ -157,7 +157,7 @@ Conventions that apply to every file written in this spec:
     - **Property 4: P2.4 Exceeded counters always refuse with EXCEEDS_CEILING**
     - **Validates: Requirements 2.4**
 
-  - [ ] 3.6 Implement admit and make the tests pass
+  - [x] 3.6 Implement admit and make the tests pass
     - Files: `backend/src/telepermit/place.py`.
     - Add `Place.admit(identity, permit, steps, spent, elapsed)`: step 1 `verify_identity(identity, self.trusted)`, any returned code gives REFUSE with that code; step 2 class not in `allowed_classes` gives REFUSE `CLASS_NOT_ALLOWED`; step 3 compute `n = permit.narrowed_by(self.ceiling)`, and `spent > n.allowance` or `steps > n.max_steps` or `elapsed > n.lifetime_s` gives REFUSE `EXCEEDS_CEILING`; step 4 `n == permit` gives ADMIT with `permit_after` the same permit object, otherwise ADMIT_IMPOSED with `n`. Reason is `OK` on both admissions. Import `UNTRUSTED_AUTHORITY` and `BAD_SIGNATURE` only if needed; do not retype the code strings.
     - Run `uv --directory backend run pytest -q tests/unit/test_place.py`
@@ -169,7 +169,7 @@ Conventions that apply to every file written in this spec:
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 4. Final checkpoint - Ensure all tests pass
+- [x] 4. Final checkpoint - Ensure all tests pass
   - Before task 1.1, record the test count with `uv --directory backend run pytest -q --collect-only -q`. Run `uv --directory backend run pytest -q` and report the final total as a difference from the recorded count, all passing, including the five properties P2.1 to P2.5.
   - Run `uv --directory backend run ruff check .`
   - Run `uv --directory backend run ruff format --check .`
