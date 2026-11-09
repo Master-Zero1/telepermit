@@ -93,21 +93,24 @@ ADVERSARIAL = [
     "go:",
     "go:nowhere",
 ]
-REQUIRED_KEY = {"read_document": "name", "search_archive": "query", "export_records": "destination"}
 PERMIT_CANDIDATES = [action for action in POOL + ADVERSARIAL if action != "finish"]
 # The library ceiling allows every candidate action, so even adversarial permit entries survive
 # the spawn narrowing and reach the NOT_IN_PLACE branch of the step algorithm.
 LIBRARY_CEILING = Permit(60.0, 30, 60, frozenset(PERMIT_CANDIDATES))
 
 texts = st.text(max_size=20)
+arg_keys = st.one_of(st.sampled_from(["name", "query", "destination"]), st.text(max_size=8))
+arg_dicts = st.dictionaries(arg_keys, texts, max_size=3)
 
 
 @st.composite
 def proposals(draw: st.DrawFn) -> Proposal:
-    """A proposal from the action pool plus adversarial strings, with valid args (Group A)."""
+    """A proposal from the action pool plus adversarial strings, with random args.
+
+    Keys come from name, query, destination or arbitrary text, so a required key is often missing.
+    """
     action = draw(st.sampled_from(POOL + ADVERSARIAL))
-    key = REQUIRED_KEY.get(action)
-    return Proposal(action, {key: draw(texts)} if key else {})
+    return Proposal(action, draw(arg_dicts))
 
 
 @st.composite
