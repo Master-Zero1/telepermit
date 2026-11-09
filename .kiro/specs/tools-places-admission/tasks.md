@@ -26,12 +26,12 @@ Conventions that apply to every file written in this spec:
 
 ## Tasks
 
-- [ ] 1. T2.1 Tool and Place models
+- [x] 1. T2.1 Tool and Place models
   - Builds `Tool`, `UnknownToolError`, `Place` (without `admit`) and `Admission`. Acceptance: `has_tool`, `tool_cost` and `execute` work on a Place built from inline test tools; unknown tool names raise `UnknownToolError`; `Admission` enforces `permit_after is None` exactly when the decision is REFUSE.
   - Edge cases: cost 0 is valid; `bool` cost is a TypeError; `has_tool` never raises; the error is a `LookupError` and not a `KeyError`.
   - _Requirements: 2.1, 2.8_
 
-  - [ ] 1.1 Write the Tool, Place and Admission unit tests first
+  - [x] 1.1 Write the Tool, Place and Admission unit tests first
     - Files: `backend/tests/unit/test_tools.py` (new), `backend/tests/unit/test_place.py` (new).
     - In `test_tools.py` write `test_negative_cost_raises_value_error` (cost -1 raises ValueError, cost 0 is valid) and `test_non_int_cost_raises_type_error` (a `bool` and a `float` cost raise TypeError).
     - In `test_place.py` build the Place inline from one or two test `Tool` values with a trivial `fn`, a ceiling Permit, a trusted map and `allowed_classes`.
@@ -43,7 +43,7 @@ Conventions that apply to every file written in this spec:
     - `test_tools.py` and `test_place.py` fail with collection errors until sub-task 1.2, not 2.3.
     - _Requirements: 2.1, 2.8_
 
-  - [ ] 1.2 Implement Tool, UnknownToolError, Place and Admission and make the tests pass
+  - [x] 1.2 Implement Tool, UnknownToolError, Place and Admission and make the tests pass
     - Files: `backend/src/telepermit/tools.py` (new), `backend/src/telepermit/place.py` (new).
     - `tools.py`: docstring naming CONTRACTS section 4; frozen, slotted `Tool` dataclass with `name`, `cost`, `description`, `args`, `fn`; `__post_init__` rejects a non-int or `bool` cost with TypeError and a negative cost with ValueError.
     - `place.py`: docstring naming CONTRACTS section 4; constants `ADMIT`, `ADMIT_IMPOSED`, `REFUSE`, `OK`, `CLASS_NOT_ALLOWED`, `EXCEEDS_CEILING` defined once; `UnknownToolError(LookupError)` with a message naming the tool and the Place; frozen, slotted `Admission` with the invariant check; frozen, slotted `Place` with exactly the CONTRACTS fields and `has_tool`, `tool_cost`, `execute`. Do not add `admit` yet.
@@ -54,12 +54,12 @@ Conventions that apply to every file written in this spec:
     - Update docs/PROGRESS.md and print the DONE line.
     - _Requirements: 2.1, 2.8_
 
-- [ ] 2. T2.2 Tool catalog
+- [x] 2. T2.2 Tool catalog
   - Depends on T2.1. Builds `library_tools`, `vault_tools`, `VaultTools`, the constants, `BRIEFING_Q3_TEXT` and `ToolArgumentError` in `tools.py`. Acceptance: `read_document({"name": "briefing-q3"})` returns the exact document text; `read_records` returns `records page N` with incrementing N; `export_records` appends to the Outbox.
   - Edge cases: unknown document name gives `no such document`; `search_archive` for any query; Outbox length equals the number of `export_records` calls; two `vault_tools()` calls share no state.
   - _Requirements: 2.1, 2.7_
 
-  - [ ] 2.1 Write the catalog unit tests first
+  - [x] 2.1 Write the catalog unit tests first
     - Files: `backend/tests/unit/test_tools.py` (append; keep the T2.1 tests) and `backend/tests/unit/test_place.py` (append; keep the T2.1 tests).
     - Write `test_catalog_costs`: costs are 1, 5, 3 and 20 for `read_document`, `search_archive`, `read_records`, `export_records`, taken from the factories.
     - Write `test_briefing_text_exact`: `BRIEFING_Q3_TEXT` equals the CONTRACTS section 8 string character for character (copy the string from the design document), and `read_document` with `{"name": "briefing-q3"}` returns it.
@@ -76,7 +76,7 @@ Conventions that apply to every file written in this spec:
     - Expected for both: a collection error `ImportError: cannot import name 'library_tools' from 'telepermit.tools'` (or another missing catalog name). Because the import is at the top of the file, the whole file fails at collection, including the T2.1 tests; they go green again after sub-task 2.3.
     - _Requirements: 2.1, 2.7_
 
-  - [ ] 2.2 Write property test P2.5 (fresh places are deterministic and the Outbox counts exports)
+  - [x] 2.2 Write property test P2.5 (fresh places are deterministic and the Outbox counts exports)
     - Files: `backend/tests/properties/test_tools_properties.py` (new).
     - Test function `test_p2_5_fresh_places_deterministic`. Generate a list of calls: tool names from the four catalog tools with generated string arguments (any text, including empty and unicode). Build two Places from two fresh factory sets (library and vault), run the same call sequence through `Place.execute` on both, and assert identical result sequences. Assert the Outbox length (via `VaultTools.outbox()`) equals the number of `export_records` calls, and that `read_records` results are `records page N` with N counting earlier `read_records` calls on that Place only. Tag the test with a comment `Feature: tools-places-admission, Property 5`.
     - Docstring: "Property P2.5: two Places built from fresh factory calls return identical results for the same call sequence, and the Outbox length equals the number of export_records calls. Validates: Requirements 2.1, 2.7".
@@ -85,7 +85,7 @@ Conventions that apply to every file written in this spec:
     - **Property 5: P2.5 Fresh places are deterministic and the Outbox counts exports**
     - **Validates: Requirements 2.1, 2.7**
 
-  - [ ] 2.3 Implement the catalog and make the tests pass
+  - [x] 2.3 Implement the catalog and make the tests pass
     - Files: `backend/src/telepermit/tools.py`.
     - Define once: the four tool name constants, the four cost constants, `BRIEFING_NAME`, `NO_SUCH_DOCUMENT`, `BRIEFING_Q3_TEXT` (source literal may be split across lines; the runtime value must equal the CONTRACTS section 8 string).
     - Add `ToolArgumentError(ValueError)` and the helper `_require_arg(tool_name, args, key)`: a missing key raises with a message naming the tool and the key, no silent default.
