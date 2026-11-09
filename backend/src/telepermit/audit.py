@@ -1,12 +1,11 @@
-"""Audit events, statuses and permit helpers (CONTRACTS section 6).
-
-This first half holds the constants, the Event model, the JSON shapes and two permit helpers.
-reduce_events and the JSONL writer come in a later task.
-"""
+"""Audit events, statuses, reduce_events and the JSONL writer (CONTRACTS section 6)."""
 
 from __future__ import annotations
 
+import json
+from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, TypedDict
 
 from telepermit.permit import Permit
@@ -158,3 +157,62 @@ def permit_json(permit: Permit) -> PermitJSON:
 def narrowed_fields(before: Permit, after: Permit) -> list[str]:
     """Names of the permit fields that differ, in the fixed order of PERMIT_FIELD_ORDER."""
     return [name for name in PERMIT_FIELD_ORDER if getattr(before, name) != getattr(after, name)]
+
+
+class ReducedState(TypedDict):
+    place: str
+    step: int
+    spent: int
+    permit: PermitJSON
+    status: str
+
+
+def _copy_permit(data: PermitJSON) -> PermitJSON:
+    return {
+        "lifetime_s": data["lifetime_s"],
+        "max_steps": data["max_steps"],
+        "allowance": data["allowance"],
+        "allowed_actions": list(data["allowed_actions"]),
+    }
+
+
+def reduce_events(events: Sequence[Event]) -> ReducedState:
+    """Rebuild place, step, spent, permit and status from an event list.
+
+    The snapshot comes from the last event, the permit from the last RUN_STARTED or BORDER_CHECK,
+    and the status from the last RUN_ENDED (ALIVE if there is none). A list that is empty or has no
+    RUN_STARTED has no defined permit, so it raises ValueError. The result shares no data with the
+    events.
+    """
+    if not events:
+        raise ValueError("cannot reduce an empty event list")
+    permit: PermitJSON | None = None
+    status = STATUS_ALIVE
+    for event in events:
+        if event.type == RUN_STARTED:
+            permit = event.data["permit"]
+        elif event.type == BORDER_CHECK and permit is not None:
+            permit = event.data["permit_after"]
+        elif event.type == RUN_ENDED:
+            status = event.data["status"]
+    if permit is None:
+        raise ValueError("the event list has no RUN_STARTED event")
+    last = events[-1]
+    return {
+        "place": last.place,
+        "step": last.step,
+        "spent": last.spent,
+        "permit": _copy_permit(permit),
+        "status": status,
+    }
+
+
+def to_jsonl(events: Sequence[Event]) -> str:
+    """One json.dumps(event, sort_keys=True) per line, every line ended by an LF."""
+    return "".join(json.dumps(event.to_dict(), sort_keys=True) + "\n" for event in events)
+
+
+def write_jsonl(path: str | Path, events: Sequence[Event]) -> None:
+    """Write the events as JSONL. newline="\\n" keeps Windows from writing CRLF."""
+    with Path(path).open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(to_jsonl(events))
