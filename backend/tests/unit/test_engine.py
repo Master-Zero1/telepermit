@@ -25,6 +25,7 @@ from telepermit.audit import (
     STATUS_REFUSED,
     STEPS_EXCEEDED,
     TOOL_CALL,
+    UNENFORCED,
     Event,
     permit_json,
     reduce_events,
@@ -248,10 +249,12 @@ def make_world(
     permit: Permit = HOME,
     start_place: str = "library",
     library_ceiling: Permit = LIBRARY_CEILING,
+    enforce: bool = True,
+    identity: Identity | None = None,
 ) -> World:
     places, vault = build_places(library_ceiling)
     clock = TickClock(0.0)
-    engine = Engine(places, make_identity(), permit, start_place, clock)
+    engine = Engine(places, identity or make_identity(), permit, start_place, clock, enforce)
     return World(engine, clock, places, vault)
 
 
@@ -598,3 +601,75 @@ def test_golden_run_b_hand_driven() -> None:
         "permit": permit_json(VAULT_CEILING),
         "status": STATUS_KILLED,
     }
+
+
+def test_unenforced_no_kill_on_any_limit() -> None:
+    """Requirement 3.10: no limit check and no kill when enforcement is off."""
+    permit = Permit(5.0, 2, 3, SIX_ACTIONS)
+    world = make_world(permit=permit, enforce=False)
+    world.clock.advance(100.0)
+    for _ in range(5):
+        world.engine.step(propose("search_archive", query="x"))
+        assert KILLED not in types(world.engine.events)
+    state = world.engine.state
+    assert state.status == STATUS_ALIVE
+    assert state.steps == 5 > permit.max_steps
+    assert state.spent == 25 > permit.allowance
+    assert world.clock.now() > permit.lifetime_s
+
+
+def test_unenforced_no_not_in_permit_denial() -> None:
+    """An action outside the permit runs when enforcement is off."""
+    world = make_world(permit=Permit(60.0, 30, 60, frozenset({"go:vault"})), enforce=False)
+    events = world.engine.step(propose("search_archive", query="x"))
+    assert types(events) == [TOOL_CALL]
+
+
+def test_unenforced_not_in_place_still_denies() -> None:
+    """Requirement 3.10: NOT_IN_PLACE still denies and still consumes a step."""
+    world = make_world(permit=Permit(60.0, 30, 60, frozenset({"go:vault"})), enforce=False)
+    events = world.engine.step(propose("read_records"))
+    assert types(events) == [DENIED]
+    assert events[0].data["reason"] == NOT_IN_PLACE
+    assert (events[0].step, events[0].spent) == (1, 0)
+    assert world.engine.state.steps == 1
+
+
+def test_unenforced_go_border_check_unenforced() -> None:
+    """Requirement 3.10: a go moves at once, with no identity or class check."""
+    forged_spy = dataclasses.replace(make_identity(), agent_class="spy", signature=bytes(64))
+    world = make_world(enforce=False, identity=forged_spy)
+    events = world.engine.step(propose("go:vault"))
+    assert types(events) == [BORDER_CHECK]
+    event = events[0]
+    assert event.data["decision"] == ADMIT
+    assert event.data["reason"] == UNENFORCED
+    assert event.data["permit_after"] == permit_json(HOME)
+    assert event.data["narrowed_fields"] == []
+    assert event.data["cost"] == 1
+    assert event.data["place"] == "vault"
+    assert (event.place, event.step, event.spent) == ("vault", 1, 1)
+    assert world.engine.state.place == "vault"
+    assert world.engine.state.permit == HOME
+
+
+def test_unenforced_finish_ends_run() -> None:
+    world = make_world(enforce=False)
+    events = world.engine.step(propose("finish"))
+    assert types(events) == [FINISHED, RUN_ENDED]
+    assert world.engine.state.status == STATUS_FINISHED
+
+
+def test_unenforced_spend_exceeds_allowance_witness() -> None:
+    """Spend CAN exceed the allowance when enforcement is off (an existential fact)."""
+    permit = Permit(60.0, 30, 10, SIX_ACTIONS)
+    world = make_world(permit=permit, enforce=False)
+    world.engine.step(propose("go:vault"))
+    world.engine.step(propose("export_records", destination="drop@example.invalid"))
+    world.engine.step(propose("export_records", destination="drop@example.invalid"))
+    state = world.engine.state
+    assert state.spent == 41 > permit.allowance
+    assert state.steps == 3
+    assert world.vault.outbox() == ("drop@example.invalid", "drop@example.invalid")
+    assert KILLED not in types(world.engine.events)
+    assert DENIED not in types(world.engine.events)

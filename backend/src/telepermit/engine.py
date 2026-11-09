@@ -28,6 +28,7 @@ from telepermit.audit import (
     STATUS_REFUSED,
     STEPS_EXCEEDED,
     TOOL_CALL,
+    UNENFORCED,
     BorderCheckData,
     DeniedData,
     Event,
@@ -44,7 +45,7 @@ from telepermit.clock import TickClock
 from telepermit.drivers.base import Proposal
 from telepermit.identity import Identity
 from telepermit.permit import Permit
-from telepermit.place import REFUSE, Place
+from telepermit.place import ADMIT, REFUSE, Place
 
 GO_COST: Final = 1
 HARNESS_CAP: Final = 30
@@ -137,8 +138,8 @@ class Engine:
         """Apply one proposal and return the events this call emitted.
 
         The rows of the algorithm run strictly in order and the first one that matches decides
-        the call. The enforce flag is stored but not consulted yet, so every Engine runs the
-        enforced rows.
+        the call. With enforcement off the lifetime, step, permit and allowance checks are skipped
+        and a go moves at once.
         """
         if self._status != STATUS_ALIVE:
             raise AgentNotAlive(f"agent is {self._status}")
@@ -149,8 +150,9 @@ class Engine:
     def _apply(self, proposal: Proposal) -> None:
         action = proposal.action
         permit = self._permit
+        enforce = self._enforce
         elapsed = self._clock.now() - self._born
-        if elapsed > permit.lifetime_s:
+        if enforce and elapsed > permit.lifetime_s:
             self._kill(LIFETIME_EXCEEDED, action, permit.lifetime_s, elapsed)
             return
         if action == FINISH_ACTION:
@@ -159,11 +161,11 @@ class Engine:
             self._emit(FINISHED, finished)
             self._emit_run_ended(STATUS_FINISHED)
             return
-        if self._steps + 1 > permit.max_steps:
+        if enforce and self._steps + 1 > permit.max_steps:
             self._kill(STEPS_EXCEEDED, action, permit.max_steps, self._steps + 1)
             return
         self._steps += 1
-        if action not in permit.allowed_actions:
+        if enforce and action not in permit.allowed_actions:
             self._deny(action, NOT_IN_PERMIT)
             return
         place = self._places[self._place]
@@ -177,14 +179,16 @@ class Engine:
             self._deny(action, NOT_IN_PLACE)
             return
         cost = GO_COST if is_go else place.tool_cost(action)
-        if self._spent + cost > permit.allowance:
+        if enforce and self._spent + cost > permit.allowance:
             self._kill(ALLOWANCE_EXCEEDED, action, permit.allowance, self._spent + cost)
             return
         self._spent += cost
-        if is_go:
+        if not is_go:
+            self._call_tool(place, proposal, cost)
+        elif enforce:
             self._cross(action, destination, elapsed)
         else:
-            self._call_tool(place, proposal, cost)
+            self._move_unenforced(action, destination)
 
     def _call_tool(self, place: Place, proposal: Proposal, cost: int) -> None:
         result = place.execute(proposal.action, dict(proposal.args))
@@ -215,6 +219,21 @@ class Engine:
             "narrowed_fields": narrowed_fields(before, after),
             "cost": GO_COST,
             "explain": f"{destination}: {admission.decision} ({admission.reason})",
+        }
+        self._emit(BORDER_CHECK, border)
+
+    def _move_unenforced(self, action: str, destination: str) -> None:
+        """With enforcement off the agent moves at once, with no identity or class check."""
+        self._place = destination
+        border: BorderCheckData = {
+            "place": destination,
+            "via_action": action,
+            "decision": ADMIT,
+            "reason": UNENFORCED,
+            "permit_after": permit_json(self._permit),
+            "narrowed_fields": [],
+            "cost": GO_COST,
+            "explain": f"{destination}: {ADMIT} ({UNENFORCED})",
         }
         self._emit(BORDER_CHECK, border)
 

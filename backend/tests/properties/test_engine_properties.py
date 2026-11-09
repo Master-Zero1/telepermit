@@ -15,6 +15,7 @@ from telepermit.audit import (
     DENIED,
     FINISHED,
     KILLED,
+    NOT_IN_PLACE,
     RUN_ENDED,
     RUN_STARTED,
     STATUS_ALIVE,
@@ -23,6 +24,7 @@ from telepermit.audit import (
     STATUS_REFUSED,
     STEPS_EXCEEDED,
     TOOL_CALL,
+    UNENFORCED,
     permit_json,
     reduce_events,
 )
@@ -31,7 +33,7 @@ from telepermit.drivers.base import Proposal
 from telepermit.engine import AgentNotAlive, Engine
 from telepermit.identity import BAD_SIGNATURE, Authority, Identity
 from telepermit.permit import Permit
-from telepermit.place import REFUSE, Place
+from telepermit.place import ADMIT, REFUSE, Place
 from telepermit.tools import VaultTools, library_tools, vault_tools
 
 # DEMO ONLY seeded authority, fine for tests.
@@ -388,3 +390,39 @@ def test_p3_7_denied_loop_ends_in_steps_exceeded(permit: Permit, actions: list[s
     assert ended.type == RUN_ENDED
     state = engine.state
     assert (state.status, state.place, state.spent) == (STATUS_KILLED, "library", 0)
+
+
+# Feature: engine-audit, Property 8
+@given(
+    permit=permits(),
+    signature=st.one_of(st.none(), st.none(), forged_signatures),
+    sequence=crossing_sequences,
+)
+def test_p3_8_unenforced_no_kill_no_permit_denial(
+    permit: Permit, signature: bytes | None, sequence: list[tuple[float, Proposal]]
+) -> None:
+    """Property P3.8: with enforcement off there is never a KILLED event or a permit-reason DENIED.
+    Validates: Requirements 3.10"""
+    identity = None
+    if signature is not None:
+        identity = dataclasses.replace(make_identity(), signature=signature)
+    world = new_world(permit, enforce=False, identity=identity)
+    engine = world.engine
+    assert [event.type for event in engine.events] == [RUN_STARTED]
+    play(world, sequence)
+    events = engine.events
+    assert KILLED not in [event.type for event in events]
+    assert engine.state.status in (STATUS_ALIVE, STATUS_FINISHED)
+    for event in events:
+        if event.type == DENIED:
+            assert event.data["reason"] == NOT_IN_PLACE
+        if event.type == BORDER_CHECK:
+            assert event.data["via_action"] is not None
+            assert event.data["decision"] == ADMIT
+            assert event.data["reason"] == UNENFORCED
+            assert event.data["narrowed_fields"] == []
+            assert event.data["permit_after"] == permit_json(permit)
+            assert event.data["cost"] == 1
+    for previous, current in pairwise(events):
+        assert current.step >= previous.step
+        assert current.spent >= previous.spent
