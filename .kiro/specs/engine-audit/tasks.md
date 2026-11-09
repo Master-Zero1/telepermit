@@ -99,12 +99,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: `test_audit.py` green including golden Run B reduction, ruff clean, commit made.
     - _Requirements: 3.14, 3.11_
 
-- [ ] 3. T3.3 Driver protocol
+- [x] 3. T3.3 Driver protocol
   - Builds `drivers/__init__.py` (docstring only) and `drivers/base.py` holding ONLY `Proposal`, `Observation`, `AgentDriver`. Acceptance: the `Observation` field set is exactly `{task, turn, place, tools, last_result}`, so a permit, spend, cost, step count or key cannot be added by accident.
   - Edge cases: both dataclasses are frozen; `base.py` imports no `telepermit` module; a class with a `propose` method satisfies the protocol structurally.
   - _Requirements: 3.13_
 
-  - [ ] 3.1 Write the driver types unit tests first
+  - [x] 3.1 Write the driver types unit tests first
     - Files: `backend/tests/unit/test_drivers_base.py` (new).
     - `test_proposal_and_observation_are_frozen` (assigning a field raises `FrozenInstanceError`).
     - `test_observation_field_set_exactly_five`: `{f.name for f in dataclasses.fields(Observation)}` equals `{"task", "turn", "place", "tools", "last_result"}`.
@@ -115,7 +115,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: collection error with exactly that message.
     - _Requirements: 3.13_
 
-  - [ ] 3.2 Implement drivers/__init__.py and drivers/base.py and make the tests pass
+  - [x] 3.2 Implement drivers/__init__.py and drivers/base.py and make the tests pass
     - Files: `backend/src/telepermit/drivers/__init__.py` (new, docstring only), `backend/src/telepermit/drivers/base.py` (new).
     - `base.py`: docstring naming CONTRACTS section 7; imports only `dataclasses` and `typing`; frozen slotted `Proposal(action, args)`; frozen slotted `Observation(task, turn, place, tools, last_result)` with `tools: list[dict[str, object]]`; `AgentDriver` protocol with `propose(observation) -> Proposal`. Nothing else in the module.
     - Run `uv --directory backend run pytest -q tests/unit/test_drivers_base.py`
