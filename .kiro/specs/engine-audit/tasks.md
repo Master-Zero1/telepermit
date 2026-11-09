@@ -478,13 +478,13 @@ Group B implements the approved decisions (a) tool errors and (d) conditional cl
     - Acceptance check: the five new engine tests and two new audit tests green, earlier tests still green, ruff clean, commit made.
     - _Requirements: 3.1, 3.11_
 
-- [ ] 12. Decision (d): conditional clock advance
+- [x] 12. Decision (d): conditional clock advance
   - Blocked until the owner confirms task 10.
   - The Engine `clock` parameter is typed `Clock` (only `now()`), and `run` advances the clock by `TICK_S` only when the clock object provides a callable `advance`.
   - Edge cases: a clock with only `now()` runs to HARNESS_CAP without an error and its reported time never changes; a `TickClock` still advances 1.0 per turn.
   - _Requirements: 3.12_
 
-  - [ ] 12.1 Write the now-only clock test first
+  - [x] 12.1 Write the now-only clock test first
     - Blocked until the owner confirms task 10.
     - Files: `backend/tests/unit/test_engine.py` (append).
     - `test_run_with_now_only_clock_does_not_advance`: an inline clock class `NowOnlyClock` with only `now()`; `run` to HARNESS_CAP completes without `AttributeError` and the reported time never changes; in the same test a `TickClock` run still ends with the clock advanced by 1.0 per turn.
@@ -493,7 +493,7 @@ Group B implements the approved decisions (a) tool errors and (d) conditional cl
     - Acceptance check: only the new test fails, with that AttributeError.
     - _Requirements: 3.12_
 
-  - [ ] 12.2 Implement the conditional advance and make the test pass
+  - [x] 12.2 Implement the conditional advance and make the test pass
     - Blocked until the owner confirms task 10.
     - Files: `backend/src/telepermit/engine.py`.
     - Type the `clock` parameter as `Clock`. In `run` read `advance = getattr(self._clock, "advance", None)` and call `advance(TICK_S)` only if it is callable.
