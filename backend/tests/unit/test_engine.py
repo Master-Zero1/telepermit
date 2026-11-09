@@ -1030,3 +1030,27 @@ def test_run_propagates_tool_exception_after_error_status() -> None:
         engine.run(driver, "")
     assert engine.state.status == STATUS_ERROR
     assert len(driver.observations) == 1
+
+
+class NowOnlyClock:
+    """A clock that can be read but not advanced: it has now() and nothing else."""
+
+    def now(self) -> float:
+        return 5.0
+
+
+def test_run_with_now_only_clock_does_not_advance() -> None:
+    """Decision (d): run calls advance only on a clock that provides it."""
+    places, _vault = build_places()
+    clock = NowOnlyClock()
+    engine = Engine(places, make_identity(), HOME, "library", clock)
+    driver = ReplayDriver([propose("bogus")])
+    result = engine.run(driver, "", max_turns=3)
+    assert result.status == STATUS_HARNESS_CAP
+    assert len(driver.observations) == 3
+    assert clock.now() == 5.0
+    assert all(event.t == 5.0 for event in result.events)
+    # a TickClock still advances by TICK_S each turn
+    world = make_world()
+    world.engine.run(ReplayDriver([propose("bogus")]), "", max_turns=3)
+    assert world.clock.now() == 3.0

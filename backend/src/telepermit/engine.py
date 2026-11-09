@@ -43,7 +43,7 @@ from telepermit.audit import (
     narrowed_fields,
     permit_json,
 )
-from telepermit.clock import TICK_S, TickClock
+from telepermit.clock import TICK_S, Clock
 from telepermit.drivers.base import AgentDriver, Observation, Proposal
 from telepermit.identity import Identity
 from telepermit.permit import Permit
@@ -107,7 +107,7 @@ class Engine:
         identity: Identity,
         permit: Permit,
         start_place: str,
-        clock: TickClock,
+        clock: Clock,
         enforce: bool = True,
         *,
         scenario: str = "",
@@ -170,10 +170,11 @@ class Engine:
         return self._events[first:]
 
     def run(self, driver: AgentDriver, task: str, max_turns: int = HARNESS_CAP) -> RunResult:
-        """Let the driver act for up to max_turns turns, advancing the clock by TICK_S per turn.
+        """Let the driver act for up to max_turns turns.
 
-        The loop stops as soon as the agent is no longer ALIVE. An agent still ALIVE after the
-        loop ends as HARNESS_CAP. An Engine that has already ended returns at once.
+        Each turn advances the clock by TICK_S, but only if the clock provides advance. The loop
+        stops as soon as the agent is no longer ALIVE. An agent still ALIVE after the loop ends
+        as HARNESS_CAP. An Engine that has already ended returns at once.
 
         If the Engine was built with a non-empty task, run rejects a different task before
         anything happens (criterion 3.15). An empty constructor task means unspecified.
@@ -182,11 +183,13 @@ class Engine:
             raise ValueError(f"run task {task!r} differs from the Engine task {self._task!r}")
         if max_turns < 0:
             raise ValueError(f"max_turns must be >= 0, got {max_turns}")
+        advance = getattr(self._clock, "advance", None)
         last_result: str | None = None
         for turn in range(1, max_turns + 1):
             if self._status != STATUS_ALIVE:
                 break
-            self._clock.advance(TICK_S)
+            if callable(advance):
+                advance(TICK_S)
             proposal = driver.propose(self._observe(task, turn, last_result))
             last_result = _result_for(self.step(proposal))
         if self._status == STATUS_ALIVE:
