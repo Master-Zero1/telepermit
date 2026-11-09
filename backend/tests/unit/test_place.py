@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
+from telepermit.identity import BAD_SIGNATURE, UNTRUSTED_AUTHORITY, Authority, Identity
 from telepermit.permit import Permit
 from telepermit.place import (
     ADMIT,
     ADMIT_IMPOSED,
+    CLASS_NOT_ALLOWED,
     EXCEEDS_CEILING,
     OK,
     REFUSE,
@@ -109,3 +113,116 @@ def test_fresh_places_identical_results() -> None:
         "records page 2",
         "exported all records to d@x (export #1)",
     ]
+
+
+# DEMO ONLY seeded authority, fine for tests.
+AUTHORITY = Authority.from_seed("home", b"place-tests")
+BOT_ONLY = frozenset({"bot"})
+REQUEST = Permit(60.0, 30, 60, frozenset({"a", "b"}))
+WIDER_CEILING = Permit(60.0, 30, 60, frozenset({"a", "b", "c"}))
+NARROW_CEILING = Permit(40.0, 20, 40, frozenset({"a"}))
+
+
+def make_gate(ceiling: Permit, allowed: frozenset[str] = BOT_ONLY) -> Place:
+    return Place("gate", {}, ceiling, {"home": AUTHORITY.public_key}, allowed)
+
+
+def issue(agent_class: str = "bot") -> Identity:
+    return AUTHORITY.issue("agent-1", agent_class, 0.0)
+
+
+def test_untrusted_authority_refused() -> None:
+    """Requirement 2.2: an authority missing from trusted is refused with that code."""
+    stranger = Authority.from_seed("stranger", b"other").issue("agent-1", "bot", 0.0)
+    result = make_gate(WIDER_CEILING).admit(stranger, REQUEST, 0, 0, 0.0)
+    assert result.decision == REFUSE
+    assert result.permit_after is None
+    assert result.reason == UNTRUSTED_AUTHORITY
+
+
+def test_bad_signature_refused() -> None:
+    """Requirement 2.2: a trusted authority name with a tampered identity gets BAD_SIGNATURE."""
+    tampered = dataclasses.replace(issue(), agent_id="evil")
+    result = make_gate(WIDER_CEILING).admit(tampered, REQUEST, 0, 0, 0.0)
+    assert result.decision == REFUSE
+    assert result.permit_after is None
+    assert result.reason == BAD_SIGNATURE
+
+
+def test_class_not_allowed_refused() -> None:
+    """Requirement 2.3: a verified identity with a disallowed class is refused."""
+    result = make_gate(WIDER_CEILING).admit(issue("spy"), REQUEST, 0, 0, 0.0)
+    assert result.decision == REFUSE
+    assert result.permit_after is None
+    assert result.reason == CLASS_NOT_ALLOWED
+
+
+@pytest.mark.parametrize(
+    ("counter", "limit", "over"),
+    [("spent", 40, 41), ("steps", 20, 21), ("elapsed", 40.0, 40.5)],
+)
+def test_exceeds_ceiling_each_counter_boundary(counter: str, limit: float, over: float) -> None:
+    """Requirement 2.4: equal to the narrowed limit is admitted, one over is refused."""
+    gate = make_gate(NARROW_CEILING)
+    base: dict[str, float] = {"steps": 0, "spent": 0, "elapsed": 0.0}
+    at_limit = gate.admit(issue(), REQUEST, **{**base, counter: limit})  # type: ignore[arg-type]
+    assert at_limit.decision == ADMIT_IMPOSED
+    refused = gate.admit(issue(), REQUEST, **{**base, counter: over})  # type: ignore[arg-type]
+    assert refused.decision == REFUSE
+    assert refused.permit_after is None
+    assert refused.reason == EXCEEDS_CEILING
+
+
+def test_zero_limit_ceiling() -> None:
+    """Requirement 2.4: a zero-limit ceiling admits zero counters and refuses anything above."""
+    zero = Permit(0.0, 0, 0, frozenset())
+    gate = make_gate(zero)
+    admitted = gate.admit(issue(), REQUEST, 0, 0, 0.0)
+    assert admitted.decision == ADMIT_IMPOSED
+    assert admitted.permit_after == zero
+    for steps, spent, elapsed in [(1, 0, 0.0), (0, 1, 0.0), (0, 0, 0.5)]:
+        refused = gate.admit(issue(), REQUEST, steps, spent, elapsed)
+        assert refused.decision == REFUSE
+        assert refused.reason == EXCEEDS_CEILING
+
+
+def test_admit_unchanged() -> None:
+    """Requirement 2.5: narrowing changes nothing, so ADMIT with the permit unchanged."""
+    result = make_gate(WIDER_CEILING).admit(issue(), REQUEST, 0, 0, 0.0)
+    assert result.decision == ADMIT
+    assert result.reason == OK
+    assert result.permit_after is REQUEST
+
+
+def test_admit_imposed() -> None:
+    """Requirement 2.6: narrowing changes a field, so ADMIT_IMPOSED with the narrowed permit."""
+    result = make_gate(NARROW_CEILING).admit(issue(), REQUEST, 0, 0, 0.0)
+    assert result.decision == ADMIT_IMPOSED
+    assert result.reason == OK
+    assert result.permit_after == REQUEST.narrowed_by(NARROW_CEILING)
+    assert result.permit_after is not None
+    assert result.permit_after.allowance != REQUEST.allowance
+    assert result.permit_after.allowed_actions != REQUEST.allowed_actions
+
+
+def test_bad_signature_beats_class() -> None:
+    """Requirements 2.2, 2.3: the identity check comes before the class check."""
+    tampered = dataclasses.replace(issue("spy"), agent_id="evil")
+    result = make_gate(WIDER_CEILING).admit(tampered, REQUEST, 0, 0, 0.0)
+    assert result.reason == BAD_SIGNATURE
+
+
+def test_class_beats_exceeded_counters() -> None:
+    """Requirements 2.3, 2.4: the class check comes before the counter check."""
+    result = make_gate(WIDER_CEILING).admit(issue("spy"), REQUEST, 10**6, 10**6, 10.0**6)
+    assert result.reason == CLASS_NOT_ALLOWED
+
+
+def test_exceeded_counters_refuse_before_admit() -> None:
+    """Requirement 2.4: exceeded counters refuse even when the permit would be admitted."""
+    unchanged = make_gate(WIDER_CEILING).admit(issue(), REQUEST, 0, 61, 0.0)
+    imposed = make_gate(NARROW_CEILING).admit(issue(), REQUEST, 0, 41, 0.0)
+    for result in (unchanged, imposed):
+        assert result.decision == REFUSE
+        assert result.permit_after is None
+        assert result.reason == EXCEEDS_CEILING
