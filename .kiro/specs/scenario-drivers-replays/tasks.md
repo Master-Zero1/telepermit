@@ -125,12 +125,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: both files green including the golden traces and P4.5, ruff clean, commit made.
     - _Requirements: 4.3, 4.4, 4.9_
 
-- [ ] 3. T4.3 Observation text safety
+- [x] 3. T4.3 Observation text safety
   - Depends on T4.2. Tests only. This task is NOT expected to be red first: the behaviour was built in Spec 3 (the Engine run loop builds the Observation) and the scenario exists from task 2, so the first run is green. The scanner self-test is what shows that the scan can fail.
   - Acceptance: across Run A and Run B no observation text contains a forbidden word, the identity signature hex or the demo private-key hex, and the observation has exactly five fields.
   - _Requirements: 4.2_
 
-  - [ ] 3.1 Write and run the observation safety tests
+  - [x] 3.1 Write and run the observation safety tests
     - Files: `backend/tests/properties/test_scenario_properties.py` (append; keep the earlier tests).
     - `test_p4_2_observations_hide_limits_and_keys`, parametrised over Run A and Run B, using an inline recording wrapper driver with label `scripted` that delegates to `ScriptedDriver(SCRIPT)` and records every observation. For each: exactly the five fields `task`, `turn`, `place`, `tools`, `last_result`; each tool entry has exactly the keys `name`, `description`, `args`; the JSON text of the observation contains none of `permit`, `allowance`, `teleclick` (compared in lower case), the identity signature hex, or `sha256(DEMO_SEED).digest().hex()`. Docstring: "Property P4.2: the agent never sees limits or keys in Run A and Run B. Validates: Requirements 4.2".
     - `test_observation_has_exactly_five_fields` (field names of the `Observation` type and of every recorded observation).
