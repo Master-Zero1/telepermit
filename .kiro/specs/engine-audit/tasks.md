@@ -126,13 +126,13 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: `test_drivers_base.py` green, ruff clean, commit made.
     - _Requirements: 3.13_
 
-- [ ] 4. T3.4 Engine construction and spawn border check
+- [x] 4. T3.4 Engine construction and spawn border check
   - Depends on T3.1 and T3.3 and Spec 2. Builds `engine.py` with `GO_COST`, `HARNESS_CAP`, `AgentNotAlive`, `EngineState`, `RunResult`, `Engine.__init__` (keyword-only `scenario`, `driver`, `task`; `clock` typed `TickClock` in Group A), `state`, `events`, the spawn border check and row 1 of `step`. For an ALIVE agent `step` temporarily does `raise NotImplementedError("rows 2 to 11: task 5")`. The guard is removed in sub-task 5.9.
   - Acceptance: constructing an Engine with a forged identity and enforcement on gives status REFUSED and exactly three events.
   - Edge cases: `enforce=False` emits only `RUN_STARTED`; an unknown start place raises `ValueError` before any event; an imposed permit at spawn replaces the current permit; `state` is a fresh frozen snapshot; `events` is a copy.
   - _Requirements: 3.9, 3.1, 3.11_
 
-  - [ ] 4.1 Write the construction and spawn unit tests first
+  - [x] 4.1 Write the construction and spawn unit tests first
     - Files: `backend/tests/unit/test_engine.py` (new). The world is built inline: `library_tools()`, `vault_tools()` (keep the `VaultTools` handle for its outbox), ceilings library `Permit(60.0, 30, 60, six actions)` and vault `Permit(60.0, 30, 40, {read_records, go:library})`, allowed class `briefing-bot`, `Authority.from_seed("home-authority", b"telepermit-demo-authority")` (DEMO ONLY), identity `briefing-bot-001`, `TickClock(0.0)`, start place library. The six actions are `read_document, search_archive, read_records, export_records, go:vault, go:library`.
     - `test_construct_enforced_admit_emits_two_events` (RUN_STARTED then BORDER_CHECK library ADMIT; step 0, spent 0, cost 0, `via_action` None).
     - `test_construct_imposed_permit_at_spawn` (start in the vault with the home permit gives ADMIT_IMPOSED and `state.permit` equal to the narrowed permit).
@@ -149,7 +149,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: collection error with exactly that message.
     - _Requirements: 3.9, 3.1, 3.11_
 
-  - [ ] 4.2 Write property test P3.9 and the shared strategies (forged identity at spawn)
+  - [x] 4.2 Write property test P3.9 and the shared strategies (forged identity at spawn)
     - Files: `backend/tests/properties/test_engine_properties.py` (new). This sub-task also defines, inline in this file, the shared world builder (fresh places on every example, CONTRACTS section 8 numbers as in 4.1) and the strategies that every later property in this file reuses:
       - action pool: `read_document`, `search_archive`, `read_records`, `export_records`, `go:vault`, `go:library`, `finish`, `bogus`, plus adversarial strings `"unknown"`, `""`, `" read_records "`, `"read_recоrds"` (Cyrillic о), `"go:välts"`, `"go:"`, `"go:nowhere"`;
       - args drawn from a table of required keys (Group A): `read_document` gets `name`, `search_archive` gets `query`, `export_records` gets `destination`, `read_records` gets none, values arbitrary text; any other action gets any dict because it is never executed;
@@ -162,7 +162,7 @@ Conventions that apply to every file written in this spec:
     - **Property 9: P3.9 A forged identity at spawn gives exactly the three-event refusal**
     - **Validates: Requirements 3.9**
 
-  - [ ] 4.3 Implement engine construction, spawn, state, events and row 1 and make the tests pass
+  - [x] 4.3 Implement engine construction, spawn, state, events and row 1 and make the tests pass
     - Files: `backend/src/telepermit/engine.py` (new).
     - Docstring naming CONTRACTS section 5. Define once: `GO_COST: Final = 1`, `HARNESS_CAP: Final = 30`. Add `AgentNotAlive(RuntimeError)` (message holds the status only), frozen slotted `EngineState` and `RunResult`.
     - `Engine.__init__(places, identity, permit, start_place, clock, enforce=True, *, scenario="", driver="scripted", task="")` with `clock` typed `TickClock`. `ValueError` for an unknown `start_place` before any state is set. `_born` assigned once. Emit `RUN_STARTED` in both modes. With enforcement on call `places[start_place].admit(identity, permit, 0, 0, 0.0)` and emit `BORDER_CHECK` (step 0, `via_action` None, cost 0); ADMIT or ADMIT_IMPOSED replaces the current permit; REFUSE keeps it, sets `permit_after` in the event to the current permit, `narrowed_fields` `[]`, status REFUSED, then `RUN_ENDED(REFUSED)`.
