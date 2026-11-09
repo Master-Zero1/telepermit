@@ -282,12 +282,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: all 5.x tests green, golden Run B green, the `NotImplementedError` search above prints nothing, ruff clean, commit made.
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.11_
 
-- [ ] 6. T3.6 Engine step() with enforcement off
+- [x] 6. T3.6 Engine step() with enforcement off
   - Depends on T3.5. Implements the enforce=False variant of the design table: lifetime, steps, permit and allowance checks skipped, no kills; NOT_IN_PLACE still denies and consumes a step; `finish` still ends the run; steps and spent still metered; `go` moves at once with `BORDER_CHECK(ADMIT, UNENFORCED)` and no identity or class check.
   - Edge cases: a forged identity still runs when enforcement is off; spend may exceed the allowance.
   - _Requirements: 3.10_
 
-  - [ ] 6.1 Write the unenforced step unit tests first
+  - [x] 6.1 Write the unenforced step unit tests first
     - Files: `backend/tests/unit/test_engine.py` (append; keep earlier tests).
     - `test_unenforced_no_kill_on_any_limit` (lifetime far exceeded, steps beyond `max_steps`, spend beyond the allowance: no `KILLED` event, status ALIVE).
     - `test_unenforced_no_not_in_permit_denial` (an action outside the permit runs).
@@ -300,7 +300,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: at least `test_unenforced_no_kill_on_any_limit`, `test_unenforced_no_not_in_permit_denial`, `test_unenforced_go_border_check_unenforced` and `test_unenforced_spend_exceeds_allowance_witness` fail with `AssertionError`, and no test fails with an import error or a `NotImplementedError`.
     - _Requirements: 3.10_
 
-  - [ ] 6.2 Write property test P3.8 (with enforcement off there is no kill and no permit denial)
+  - [x] 6.2 Write property test P3.8 (with enforcement off there is no kill and no permit denial)
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_8_unenforced_no_kill_no_permit_denial`. Enforcement off, any permit and sequence, including a forged identity in a share of examples. Assert: no `KILLED` event; no `DENIED` with reason NOT_IN_PERMIT; every `DENIED` has reason NOT_IN_PLACE; no spawn `BORDER_CHECK` (the log starts with only `RUN_STARTED`); every `BORDER_CHECK` has decision ADMIT, reason UNENFORCED, `narrowed_fields == []`, and `permit_after` equal to the unchanged permit; `step` and `spent` in the snapshots keep being metered (non-decreasing). Only the universal parts are asserted here; the existential "spend may exceed the allowance" is the witness unit test of 6.1.
     - Docstring: "Property P3.8: with enforcement off there is never a KILLED event or a permit-reason DENIED. Validates: Requirements 3.10".
@@ -309,7 +309,7 @@ Conventions that apply to every file written in this spec:
     - **Property 8: P3.8 With enforcement off there is no kill and no permit denial**
     - **Validates: Requirements 3.10**
 
-  - [ ] 6.3 Implement the enforce=False variant and make the tests pass
+  - [x] 6.3 Implement the enforce=False variant and make the tests pass
     - Files: `backend/src/telepermit/engine.py`.
     - Per the design table: skip rows 2, 4, 6 and 8; keep rows 1, 3, 5, 7, 9, 10; replace row 11 with the immediate move and `BORDER_CHECK(ADMIT, UNENFORCED, permit_after = unchanged permit, narrowed_fields [], cost 1)`, no `admit` call. Make `step` consult the `enforce` flag.
     - Run `uv --directory backend run pytest -q tests/unit/test_engine.py`
