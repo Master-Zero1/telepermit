@@ -6,7 +6,7 @@ Last updated: 2026-11-08. Phase 0 and Spec 1 done; main and tag spec-01-done pus
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
 - [x] Hooks created (docs/HOOKS.md): property-guard, invariant-review, fact-guard, spec-sync, journal (not yet committed)
 - [x] Spec 1: permit + identity            folder: .kiro/specs/permit-identity  branch: spec/01-permit-identity (all 6 tasks done, 49 tests green, ruff clean; merged to main with --no-ff, tagged spec-01-done, not pushed)
-- [x] Spec 2: tools + places + admission   folder: .kiro/specs/tools-places-admission  branch: spec/02-tools-places-admission (all 4 tasks done, 89 tests green (49 baseline + 40), ruff clean; merge to main + tag spec-02-done follow)
+- [x] Spec 2: tools + places + admission   folder: .kiro/specs/tools-places-admission  branch: spec/02-tools-places-admission (all 4 tasks done, 89 tests green (49 baseline + 40), ruff clean; merged to main with --no-ff, tagged spec-02-done, main pushed, tag not yet pushed)
 - [ ] Spec 3: engine + metering + kill + audit  folder: ____  branch: ____
 - [ ] Spec 4: scenario + drivers + replays + CLI  folder: ____  branch: ____  (MILESTONE M1)
 - [ ] Spec 5: timeline UI                  folder: ____  branch: ____
