@@ -1,8 +1,8 @@
 """The Engine: the only executor of tools (CONTRACTS section 5).
 
 It meters every action, applies the step algorithm in the order of CONTRACTS section 5, destroys
-the agent on a breach and emits one audit event per state transition. The run loop arrives in a
-later task.
+the agent on a breach and emits one audit event per state transition. run drives it with a
+driver, one turn at a time.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from telepermit.audit import (
     RUN_STARTED,
     STATUS_ALIVE,
     STATUS_FINISHED,
+    STATUS_HARNESS_CAP,
     STATUS_KILLED,
     STATUS_REFUSED,
     STEPS_EXCEEDED,
@@ -41,8 +42,8 @@ from telepermit.audit import (
     narrowed_fields,
     permit_json,
 )
-from telepermit.clock import TickClock
-from telepermit.drivers.base import Proposal
+from telepermit.clock import TICK_S, TickClock
+from telepermit.drivers.base import AgentDriver, Observation, Proposal
 from telepermit.identity import Identity
 from telepermit.permit import Permit
 from telepermit.place import ADMIT, REFUSE, Place
@@ -51,6 +52,24 @@ GO_COST: Final = 1
 HARNESS_CAP: Final = 30
 FINISH_ACTION: Final = "finish"
 GO_PREFIX: Final = "go:"
+
+
+def _result_for(events: list[Event]) -> str | None:
+    """What the agent is told about the step that emitted these events (CONTRACTS section 7).
+
+    Denials never name a reason, and a refused crossing never names a reason code.
+    """
+    for event in events:
+        data = event.data
+        if event.type == TOOL_CALL:
+            return data["result"]
+        if event.type == DENIED:
+            return f"DENIED: action '{data['action']}' is not available to you here."
+        if event.type == BORDER_CHECK:
+            if data["decision"] == REFUSE:
+                return f"REFUSED at the border of {data['place']}."
+            return f"You are now in {data['place']}."
+    return None
 
 
 class AgentNotAlive(RuntimeError):
@@ -99,6 +118,7 @@ class Engine:
         self._identity = identity
         self._clock = clock
         self._enforce = enforce
+        self._task = task
         self._born = clock.now()
         self._status = STATUS_ALIVE
         self._place = start_place
@@ -146,6 +166,45 @@ class Engine:
         first = len(self._events)
         self._apply(proposal)
         return self._events[first:]
+
+    def run(self, driver: AgentDriver, task: str, max_turns: int = HARNESS_CAP) -> RunResult:
+        """Let the driver act for up to max_turns turns, advancing the clock by TICK_S per turn.
+
+        The loop stops as soon as the agent is no longer ALIVE. An agent still ALIVE after the
+        loop ends as HARNESS_CAP. An Engine that has already ended returns at once.
+
+        If the Engine was built with a non-empty task, run rejects a different task before
+        anything happens (criterion 3.15). An empty constructor task means unspecified.
+        """
+        if self._task and task != self._task:
+            raise ValueError(f"run task {task!r} differs from the Engine task {self._task!r}")
+        if max_turns < 0:
+            raise ValueError(f"max_turns must be >= 0, got {max_turns}")
+        last_result: str | None = None
+        for turn in range(1, max_turns + 1):
+            if self._status != STATUS_ALIVE:
+                break
+            self._clock.advance(TICK_S)
+            proposal = driver.propose(self._observe(task, turn, last_result))
+            last_result = _result_for(self.step(proposal))
+        if self._status == STATUS_ALIVE:
+            self._status = STATUS_HARNESS_CAP
+            self._emit_run_ended(STATUS_HARNESS_CAP)
+        return RunResult(self._status, self.events, self.state)
+
+    def _observe(self, task: str, turn: int, last_result: str | None) -> Observation:
+        """What the driver may see: tools of this place, other places, finish. Nothing else."""
+        tools: list[dict[str, object]] = [
+            {"name": tool.name, "description": tool.description, "args": dict(tool.args)}
+            for tool in self._places[self._place].tools.values()
+        ]
+        tools.extend(
+            {"name": f"{GO_PREFIX}{name}", "description": f"Move to {name}.", "args": {}}
+            for name in self._places
+            if name != self._place
+        )
+        tools.append({"name": FINISH_ACTION, "description": "End the run.", "args": {}})
+        return Observation(task, turn, self._place, tools, last_result)
 
     def _apply(self, proposal: Proposal) -> None:
         action = proposal.action
