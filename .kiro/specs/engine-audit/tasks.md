@@ -37,13 +37,13 @@ Conventions that apply to every file written in this spec:
 
 ### Group A
 
-- [ ] 1. T3.1 Clock and Event models
+- [x] 1. T3.1 Clock and Event models
   - Builds `clock.py` (`TICK_S`, `Clock` protocol, `TickClock`) and the first half of `audit.py` (event type, status, denial, kill constants, `UNENFORCED`, `PERMIT_FIELD_ORDER`, `Event`, the data TypedDicts, `permit_json`, `narrowed_fields`). Statuses are the FIVE of CONTRACTS: ALIVE, KILLED, FINISHED, REFUSED, HARNESS_CAP, each with the `STATUS_` prefix. No `STATUS_ERROR` in Group A.
   - Acceptance: `TickClock` advances and rejects bad values; `Event` accepts the seven types and rejects any other; `permit_json(p)` equals `p.to_json()`.
   - Edge cases: `advance(0)` is allowed; negative, NaN and infinite `dt` raise `ValueError`; non-finite `start` raises; 30 ticks of `TICK_S` give exactly 30.0.
   - _Requirements: 3.11, 3.14_
 
-  - [ ] 1.1 Write the Clock and Event unit tests first
+  - [x] 1.1 Write the Clock and Event unit tests first
     - Files: `backend/tests/unit/test_clock.py` (new), `backend/tests/unit/test_audit.py` (new).
     - Before writing anything, run `uv --directory backend run pytest -q --collect-only -q` and record the count (baseline 89).
     - In `test_clock.py`: `test_start_value_and_now`, `test_advance_by_one`, `test_advance_zero_allowed`, `test_advance_negative_raises` (ValueError), `test_advance_nan_and_infinity_raise` (ValueError for NaN, inf, -inf), `test_non_finite_start_raises` (ValueError), `test_thirty_ticks_equal_thirty` (30 calls of `advance(TICK_S)` give exactly 30.0), `test_tick_s_is_one`.
@@ -54,7 +54,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: both files fail at collection with exactly those two errors.
     - _Requirements: 3.11, 3.14_
 
-  - [ ] 1.2 Implement clock.py and the first half of audit.py and make the tests pass
+  - [x] 1.2 Implement clock.py and the first half of audit.py and make the tests pass
     - Files: `backend/src/telepermit/clock.py` (new), `backend/src/telepermit/audit.py` (new).
     - `clock.py`: docstring naming CONTRACTS section 5; `TICK_S: Final = 1.0`; `Clock` protocol with `now()`; `TickClock(start=0.0)` with `now()` and `advance(dt)`; validation as in the design (`ValueError` for negative, NaN or infinite `dt` and for a non-finite `start`; `dt == 0` allowed).
     - `audit.py`: docstring naming CONTRACTS section 6; the seven event type constants and `EVENT_TYPES`; the five `STATUS_*` constants and `STATUSES`; `NOT_IN_PERMIT`, `NOT_IN_PLACE`, `LIFETIME_EXCEEDED`, `STEPS_EXCEEDED`, `ALLOWANCE_EXCEEDED`, `UNENFORCED`, `PERMIT_FIELD_ORDER`; decisions and place reasons imported from `place.py`, never retyped; frozen slotted `Event` with the `__post_init__` check and `to_dict`; the TypedDicts of the design; `permit_json`; `narrowed_fields`. No `engine` import.
