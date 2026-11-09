@@ -67,12 +67,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: both test files green, ruff clean, commit made.
     - _Requirements: 3.11, 3.14_
 
-- [ ] 2. T3.2 reduce_events and JSONL writer
+- [x] 2. T3.2 reduce_events and JSONL writer
   - Depends on T3.1. Adds `reduce_events`, `ReducedState`, `to_jsonl` and `write_jsonl` to `audit.py`. Acceptance: the hand-built Run B event list reduces to place vault, step 17, spent 38, permit allowance 40, status KILLED.
   - Edge cases: empty list raises `ValueError`; a list without `RUN_STARTED` raises `ValueError`; no `RUN_ENDED` gives ALIVE; permit comes from `RUN_STARTED` when there is no `BORDER_CHECK`; the result never aliases event data; JSONL lines end in LF only.
   - _Requirements: 3.14, 3.11_
 
-  - [ ] 2.1 Write the reduce_events and JSONL unit tests first
+  - [x] 2.1 Write the reduce_events and JSONL unit tests first
     - Files: `backend/tests/unit/test_audit.py` (append; keep the T3.1 tests).
     - `test_reduce_events_golden_run_b`: a hand-built 20-event list in the shape of CONTRACTS section 8 Run B (events built with the `Event` constructor and `permit_json`) reduces to `{place: "vault", step: 17, spent: 38, permit: allowance 40 with allowed_actions read_records and go:library, status: "KILLED"}`.
     - `test_reduce_empty_raises` and `test_reduce_without_run_started_raises` (ValueError).
@@ -87,7 +87,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: the single collection error above and nothing else.
     - _Requirements: 3.14, 3.11_
 
-  - [ ] 2.2 Implement reduce_events, to_jsonl and write_jsonl and make the tests pass
+  - [x] 2.2 Implement reduce_events, to_jsonl and write_jsonl and make the tests pass
     - Files: `backend/src/telepermit/audit.py`.
     - `reduce_events`: snapshot (`place`, `step`, `spent`) from the last event; permit from the last `RUN_STARTED` (`data["permit"]`) or `BORDER_CHECK` (`data["permit_after"]`); status from the last `RUN_ENDED` (`data["status"]`), otherwise ALIVE; `ValueError` for an empty list or no `RUN_STARTED`; return a fresh dict with a fresh `allowed_actions` list.
     - `to_jsonl`: each event as `json.dumps(event.to_dict(), sort_keys=True)` followed by `"\n"`, default `ensure_ascii=True`. `write_jsonl(path, events)`: `open(path, "w", encoding="utf-8", newline="\n")`, no parent directory creation.
