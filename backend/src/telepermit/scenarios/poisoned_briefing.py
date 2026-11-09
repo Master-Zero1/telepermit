@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final, Protocol
 
+from telepermit.audit import ReplayMeta, permit_json
 from telepermit.clock import TickClock
 from telepermit.drivers import GO_PREFIX
 from telepermit.drivers.base import AgentDriver, Proposal
@@ -22,6 +23,7 @@ from telepermit.permit import Permit
 from telepermit.place import Place
 from telepermit.tools import (
     BRIEFING_NAME,
+    BRIEFING_Q3_TEXT,
     EXPORT_RECORDS,
     EXPORT_RECORDS_COST,
     READ_DOCUMENT,
@@ -45,6 +47,13 @@ VAULT: Final = "vault"
 START_PLACE: Final = LIBRARY
 EXPORT_DESTINATION: Final = "drop@example.invalid"
 LABELS: Final = frozenset({"scripted", "llm"})
+GENERATED_BY_RECORDER: Final = "scripts/record_replays.py"
+REPLAY_ID_ENFORCED: Final = "poisoned-briefing-enforced"
+REPLAY_ID_UNENFORCED: Final = "poisoned-briefing-unenforced"
+REPLAY_ID_FORGED: Final = "forged-identity-refused"
+REPLAY_TITLE_ENFORCED: Final = "Poisoned briefing: limits enforced"
+REPLAY_TITLE_UNENFORCED: Final = "Poisoned briefing: no enforcement"
+REPLAY_TITLE_FORGED: Final = "Forged identity refused at the border"
 
 _GO_VAULT: Final = f"{GO_PREFIX}{VAULT}"
 _GO_LIBRARY: Final = f"{GO_PREFIX}{LIBRARY}"
@@ -155,3 +164,38 @@ def run_scenario(
     )
     result = engine.run(chosen, TASK, max_turns)
     return ScenarioRun(result, world.outbox(), enforce, forged, label, max_turns)
+
+
+def replay_identity(run: ScenarioRun) -> tuple[str, str]:
+    """The replay id and title. The title ends with the label of the driver actually used."""
+    if run.forged:
+        base_id, base_title = REPLAY_ID_FORGED, REPLAY_TITLE_FORGED
+    elif run.enforce:
+        base_id, base_title = REPLAY_ID_ENFORCED, REPLAY_TITLE_ENFORCED
+    else:
+        base_id, base_title = REPLAY_ID_UNENFORCED, REPLAY_TITLE_UNENFORCED
+    if run.driver_label == "llm":
+        return f"{base_id}-llm", f"{base_title} (live LLM)"
+    return base_id, f"{base_title} (scripted)"
+
+
+def replay_meta(run: ScenarioRun, generated_by: str) -> ReplayMeta:
+    """The meta block of the replay of this run (CONTRACTS section 9)."""
+    replay_id, title = replay_identity(run)
+    return {
+        "id": replay_id,
+        "title": title,
+        "scenario": SCENARIO_NAME,
+        "driver": run.driver_label,
+        "enforce": run.enforce,
+        "harness_cap": run.max_turns,
+        "task": TASK,
+        "home_permit": permit_json(HOME_PERMIT),
+        "ceilings": {
+            LIBRARY: permit_json(LIBRARY_CEILING),
+            VAULT: permit_json(VAULT_CEILING),
+        },
+        "tool_costs": dict(TOOL_COSTS),
+        "document_text": BRIEFING_Q3_TEXT,
+        "generated_by": generated_by,
+    }
