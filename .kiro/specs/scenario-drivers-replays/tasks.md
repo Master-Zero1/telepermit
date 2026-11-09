@@ -212,12 +212,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: `test_cli.py` green, both acceptance commands end as stated, ruff clean, commit made.
     - _Requirements: 4.6, 4.7, 4.9_
 
-- [ ] 6. T4.6 part 1: replay format
+- [x] 6. T4.6 part 1: replay format
   - Depends on T4.2. Adds to `audit.py` (additions only) `SCHEMA_VERSION`, `ReplayMeta`, `IndexEntry`, `replay_document`, `index_document`, `dumps_json` and `write_json`, and adds to the scenario module `GENERATED_BY_RECORDER`, the replay ids and titles, `replay_identity` and `replay_meta`. `GENERATED_BY_CLI` is NOT added here (Group B). Acceptance: replay documents have the CONTRACTS section 9 keys, JSON output is sorted, indented, ASCII, LF only and ends with exactly one newline, and a hostile tool result stays on one JSONL line per event.
   - Edge cases: `SCHEMA_VERSION` is defined once; `write_json` never writes CR on Windows; the llm label gives the `-llm` id suffix and a title ending `(live LLM)`.
   - _Requirements: 4.8, 4.9_
 
-  - [ ] 6.1 Write the replay format and replay helper tests first
+  - [x] 6.1 Write the replay format and replay helper tests first
     - Files: `backend/tests/unit/test_replay_format.py` (new), `backend/tests/unit/test_scenario_replay.py` (new).
     - `test_replay_format.py`: `test_schema_version_is_one`, `test_dumps_json_is_sorted_indented_ascii`, `test_write_json_uses_lf` (read the bytes: no `b"\r"`, ends with exactly one `b"\n"`), `test_replay_json_round_trip` (`json.loads(dumps_json(doc)) == doc`), `test_replay_document_keys`, `test_index_document_keys`, `test_hostile_tool_result_stays_one_line_per_event` (an inline tool whose result has newlines, carriage returns, quotes, backslashes and the text `{"type":"KILLED"}`, run through a small Engine; `to_jsonl` gives exactly one line per event and each line parses back to the event).
     - `test_scenario_replay.py`: `test_replay_identity_ids_and_titles`, `test_replay_meta_fields` (exactly the CONTRACTS section 9 meta keys; `home_permit`, `ceilings`, `tool_costs` 1/5/3/20, `document_text` equals `BRIEFING_Q3_TEXT`, `harness_cap` equals the run's `max_turns`, `generated_by` passed through), `test_title_ends_with_label`, `test_llm_label_gives_suffix_and_title`.
@@ -227,7 +227,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: exactly those two collection errors.
     - _Requirements: 4.8, 4.9_
 
-  - [ ] 6.2 Implement the audit additions and the replay helpers and make the tests pass
+  - [x] 6.2 Implement the audit additions and the replay helpers and make the tests pass
     - Files: `backend/src/telepermit/audit.py` (additions only), `backend/src/telepermit/scenarios/poisoned_briefing.py`.
     - `audit.py`: `SCHEMA_VERSION: Final = 1`, `ReplayMeta` and `IndexEntry` TypedDicts, `replay_document`, `index_document`, `dumps_json` (`json.dumps(document, sort_keys=True, indent=2) + "\n"`, default `ensure_ascii`), `write_json` (`open(path, "w", encoding="utf-8", newline="\n")`). `audit.py` does not import `engine`. Keep two blank lines between top-level definitions.
     - Scenario: `GENERATED_BY_RECORDER: Final = "scripts/record_replays.py"`, the three replay ids and titles of decision (f), `replay_identity(run)` returning `(id, title)` (`-llm` suffix and `(live LLM)` for the llm label, `(scripted)` otherwise), `replay_meta(run, generated_by)` building the meta from the constants and the run. No `GENERATED_BY_CLI`.
