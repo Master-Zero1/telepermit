@@ -145,13 +145,13 @@ Conventions that apply to every file written in this spec:
     - **Property 2: P4.2 The agent never sees limits or keys in Run A and Run B**
     - **Validates: Requirements 4.2**
 
-- [ ] 4. T4.4 LLM driver
+- [x] 4. T4.4 LLM driver
   - Depends on T4.1. Builds `drivers/llm.py` (`LLMDriver`, `build_client`, `LLMUnavailableError`, constants) and the inline network guard (decision h). The mapping follows the documented Anthropic Messages API and is NOT exercised against the live service; tests use an inline fake client.
   - Acceptance: requests have the designed shape, responses map to proposals, and `anthropic` is imported only inside `build_client`.
   - Edge cases: several `tool_use` blocks (the first wins); a response with no `tool_use` finishes; an empty response is not appended to the history; request messages are snapshots; a blank model raises `ValueError`; the system prompt has no banned words.
   - _Requirements: 4.5, 4.6_
 
-  - [ ] 4.1 Write the LLM driver unit tests first, with the inline network guard
+  - [x] 4.1 Write the LLM driver unit tests first, with the inline network guard
     - Files: `backend/tests/unit/test_llm_driver.py` (new).
     - The guard (decision h), defined inline: an autouse fixture `network_calls` that replaces `socket.socket.connect`, `socket.socket.connect_ex`, `socket.create_connection` and `socket.getaddrinfo` with functions that raise a local `NetworkBlockedError` and append the attempt to a list the fixture yields. Its TEARDOWN FAILS the test if the list is not empty.
     - The proving test `test_network_guard_blocks_connections` triggers a connect, a name lookup and `create_connection` on purpose, asserts each raised `NetworkBlockedError` and was recorded, and CLEARS the list in a `finally` block (`try: ...` the triggers and assertions, `finally: network_calls.clear()`) so the teardown check passes on purpose and does not fail the file, even when one of the proving test's own assertions fails (the report then shows only that real failure).
@@ -162,7 +162,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: collection error with exactly that message.
     - _Requirements: 4.5, 4.6_
 
-  - [ ] 4.2 Write property test P4.6 (the LLM driver maps responses to proposals and never touches the engine)
+  - [x] 4.2 Write property test P4.6 (the LLM driver maps responses to proposals and never touches the engine)
     - Files: `backend/tests/properties/test_llm_driver_properties.py` (new). No guard fixture in this file (Hypothesis rejects function-scoped fixtures); the inline fake client makes no socket calls.
     - Test function `test_p4_6_mapping_history_and_no_engine_calls`. Observations from a small place pool with random string arg names, `go:<place>` entries for the other places, `finish` and any `last_result`; fake responses drawn from: a `tool_use` for a place tool with random string args; a `go` tool_use with a place; `finish`; text-only; empty content; several `tool_use` blocks; an unknown tool name; sequences of 1 to 6 turns. Assert the mapped proposal (first `tool_use` wins, `go` gives `go:<place>`, unknown names pass through, args coerced to strings, `finish` when there is no `tool_use`); the request has exactly one `go` tool whose enum equals the other places (none when there are none), plus place tools and `finish`, the fixed `tool_choice`, the model and `max_tokens`; no sent text contains `permit`, `allowance`, `teleclick` or the demo key hex; roles alternate and every later user message starts with a `tool_result` for every `tool_use` id of the previous assistant message. `Engine.step`, `Engine.run` and `Place.execute` are monkeypatched to fail the test if called. Tag with a comment `Feature: scenario-drivers-replays, Property 6`.
     - Docstring: "Property P4.6: the LLM driver maps responses to proposals, keeps a well-formed history and never touches the engine. Validates: Requirements 4.5".
@@ -172,7 +172,7 @@ Conventions that apply to every file written in this spec:
     - **Property 6: P4.6 The LLM driver maps responses to proposals and never touches the engine**
     - **Validates: Requirements 4.5**
 
-  - [ ] 4.3 Implement drivers/llm.py and make the tests pass
+  - [x] 4.3 Implement drivers/llm.py and make the tests pass
     - Files: `backend/src/telepermit/drivers/llm.py` (new).
     - Docstring naming CONTRACTS section 7. Imports only `__future__`, `copy`, `json` if needed, `collections.abc`, `typing`, `telepermit.drivers` and `telepermit.drivers.base`; never `engine`, `identity`, `place` or `tools`. Constants `ENV_MODEL`, `ENV_API_KEY`, `MAX_TOKENS` (1024), `GO_TOOL` (`"go"`) and `SYSTEM_PROMPT` (neutral, none of the banned words). `LLMUnavailableError`. `build_client(api_key)` does `import anthropic` INSIDE the function, turns `ImportError` into `LLMUnavailableError("the llm extra is not installed: run uv sync --extra llm")`. `LLMDriver(client, model, *, max_tokens=MAX_TOKENS)` with `label: Final = "llm"`, `ValueError` for a blank model, request and response mapping and history exactly as in design.md, blocks read with `getattr`, a deep copy of the history sent on each request.
     - Run `uv --directory backend run pytest -q tests/unit/test_llm_driver.py`
