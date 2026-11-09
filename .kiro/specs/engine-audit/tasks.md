@@ -421,17 +421,17 @@ Conventions that apply to every file written in this spec:
 
 Group B implements the approved decisions (a) tool errors and (d) conditional clock advance. It needs the CONTRACTS amendment first, because the amendment adds the status `ERROR` and the conditional `advance`.
 
-- [ ] 10. Owner applies the CONTRACTS amendment
+- [x] 10. Owner applies the CONTRACTS amendment
   - Owner-only task. The agent does not edit docs/CONTRACTS.md. The owner uses the suggested text kept at the end of design.md: the status `ERROR` in the section 5 status line, the `RUN_ENDED` status list in section 6, the `TOOL_CALL` error result `"error: <message>"`, and `run` advancing the clock only when the clock provides `advance`.
   - Test command: none (owner action).
   - _Requirements: 3.11, 3.12_
 
-  - [ ] 10.1 Owner edits docs/CONTRACTS.md and confirms in chat
+  - [x] 10.1 Owner edits docs/CONTRACTS.md and confirms in chat
     - Files: `docs/CONTRACTS.md` (owner edit; the agent does not touch it and does not stage it).
     - Acceptance check: the owner confirms in chat that the amendment is applied.
     - _Requirements: 3.11, 3.12_
 
-  - [ ] 10.2 Agent confirms the amendment with read-only searches
+  - [x] 10.2 Agent confirms the amendment with read-only searches
     - Files: none changed.
     - Run `git grep -n "ERROR" -- docs/CONTRACTS.md`
     - Run `git grep -n "error:" -- docs/CONTRACTS.md`
@@ -440,13 +440,13 @@ Group B implements the approved decisions (a) tool errors and (d) conditional cl
     - Acceptance check: all three found in the stated sections.
     - _Requirements: 3.11, 3.12_
 
-- [ ] 11. Decision (a): tool errors
+- [x] 11. Decision (a): tool errors
   - Blocked until the owner confirms task 10.
   - Adds `STATUS_ERROR` (literal `"ERROR"`) to `audit.py` and rows 10a and 10b to `engine.py`. A `ToolArgumentError` from `place.execute` becomes a `TOOL_CALL` with result `"error: <message>"` (cost stays charged, step stays consumed, status stays ALIVE). Any other `Exception` sets the status ERROR before emitting, emits `RUN_ENDED(ERROR)` and re-raises unchanged. `BaseException` and a bare `except` are never used.
   - Edge cases: `KeyboardInterrupt` propagates and the status is not set to ERROR; the `RUN_ENDED(ERROR)` snapshot includes the attempt and the charged cost; `reduce_events` equals the Engine state; `step` after ERROR raises `AgentNotAlive`.
   - _Requirements: 3.1, 3.11_
 
-  - [ ] 11.1 Write the tool error tests first
+  - [x] 11.1 Write the tool error tests first
     - Blocked until the owner confirms task 10.
     - Files: `backend/tests/unit/test_audit.py` (append), `backend/tests/unit/test_engine.py` (append).
     - In `test_audit.py`: `test_status_error_constant` (`STATUS_ERROR == "ERROR"` and it is in `STATUSES`), `test_reduce_run_ended_error` (a hand-built `RUN_ENDED(ERROR)` reduces to status ERROR).
@@ -463,7 +463,7 @@ Group B implements the approved decisions (a) tool errors and (d) conditional cl
     - Acceptance check: the single ImportError for each of the two files.
     - _Requirements: 3.1, 3.11_
 
-  - [ ] 11.2 Implement STATUS_ERROR and rows 10a and 10b and make the tests pass
+  - [x] 11.2 Implement STATUS_ERROR and rows 10a and 10b and make the tests pass
     - Blocked until the owner confirms task 10.
     - Files: `backend/src/telepermit/audit.py`, `backend/src/telepermit/engine.py`.
     - `audit.py`: add `STATUS_ERROR: Final = "ERROR"` and include it in `STATUSES`.
