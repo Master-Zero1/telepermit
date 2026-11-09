@@ -20,6 +20,8 @@ SCRIPT = REPO_ROOT / "scripts" / "record_replays.py"
 REPLAY_DIR = REPO_ROOT / "frontend" / "public" / "replays"
 ENFORCED_ID = "poisoned-briefing-enforced"
 UNENFORCED_ID = "poisoned-briefing-unenforced"
+FORGED_ID = "forged-identity-refused"
+FORGED_FILE = f"{FORGED_ID}.json"
 GENERATED_BY = "scripts/record_replays.py"
 KEY_HEX = hashlib.sha256(DEMO_SEED).digest().hex()
 META_KEYS = {
@@ -221,3 +223,53 @@ def test_no_key_hex_in_any_file() -> None:
     for entry in entries:
         text = (REPLAY_DIR / str(entry["file"])).read_bytes().decode("ascii")
         assert KEY_HEX not in text.lower(), entry["file"]
+
+
+def test_forged_replay_golden() -> None:
+    """Requirement 4.4: Run C has exactly three events and ends REFUSED with BAD_SIGNATURE."""
+    document = read_replay(FORGED_FILE)
+    events = events_of(document)
+    meta = document["meta"]
+    assert isinstance(meta, dict)
+    assert (meta["id"], meta["enforce"], meta["driver"]) == (FORGED_ID, True, "scripted")
+    assert [event["type"] for event in events] == ["RUN_STARTED", "BORDER_CHECK", "RUN_ENDED"]
+    assert events[0]["data"]["identity"]["signature_hex"] == "0" * 128  # type: ignore[index]
+    border = events[1]
+    assert border["place"] == "library"
+    assert border["data"]["decision"] == "REFUSE"  # type: ignore[index]
+    assert border["data"]["reason"] == "BAD_SIGNATURE"  # type: ignore[index]
+    assert events[2]["data"] == {"status": "REFUSED"}
+
+
+def test_forged_replay_in_index_after_the_m1_replays() -> None:
+    index = read_index()
+    assert [entry["id"] for entry in index["replays"]] == [  # type: ignore[attr-defined]
+        ENFORCED_ID,
+        UNENFORCED_ID,
+        FORGED_ID,
+    ]
+
+
+def test_forged_replay_is_written_before_the_index(tmp_path: Path) -> None:
+    recorder = load_recorder()
+    assert [path.name for path in recorder.record_all(tmp_path)] == [
+        f"{ENFORCED_ID}.json",
+        f"{UNENFORCED_ID}.json",
+        FORGED_FILE,
+        "index.json",
+    ]
+
+
+def test_forged_replay_labels() -> None:
+    """Requirement 4.9: the labels of the forged replay name the scripted driver."""
+    document = read_replay(FORGED_FILE)
+    meta = document["meta"]
+    assert isinstance(meta, dict)
+    started = events_of(document)[0]["data"]
+    assert meta["driver"] == started["driver"] == "scripted"  # type: ignore[index]
+    assert meta["title"] == "Forged identity refused at the border (scripted)"
+    assert meta["generated_by"] == GENERATED_BY
+    entry = [e for e in index_entries() if e["id"] == FORGED_ID]
+    assert [(e["driver"], e["enforce"], e["file"]) for e in entry] == [
+        ("scripted", True, FORGED_FILE)
+    ]

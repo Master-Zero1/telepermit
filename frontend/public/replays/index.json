@@ -13,6 +13,13 @@
       "file": "poisoned-briefing-unenforced.json",
       "id": "poisoned-briefing-unenforced",
       "title": "Poisoned briefing: no enforcement (scripted)"
+    },
+    {
+      "driver": "scripted",
+      "enforce": true,
+      "file": "forged-identity-refused.json",
+      "id": "forged-identity-refused",
+      "title": "Forged identity refused at the border (scripted)"
     }
   ],
   "schema_version": 1

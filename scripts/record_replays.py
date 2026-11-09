@@ -2,9 +2,10 @@
 
 Run it with: uv --directory backend run python ../scripts/record_replays.py
 
-It runs the scripted scenario with enforcement on (Run B) and off (Run A), writes one replay file
-per run, and writes index.json last. There is no network, clock or randomness, so recording twice
-gives byte-identical files. DEMO ONLY: the scenario key is derived from a public seed.
+It runs the scripted scenario with enforcement on (Run B), off (Run A) and with a forged identity
+(Run C), writes one replay file per run, and writes index.json last. There is no network, clock
+or randomness, so recording twice gives byte-identical files. DEMO ONLY: the scenario key is
+derived from a public seed.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from telepermit.scenarios.poisoned_briefing import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REPLAY_DIR = REPO_ROOT / "frontend" / "public" / "replays"
 INDEX_NAME = "index.json"
+# (enforce, forged) of each recording, in write order: Run B, Run A, Run C.
+RECORDINGS = ((True, False), (False, False), (True, True))
 
 
 def record_all(output_dir: Path) -> list[Path]:
@@ -30,8 +33,8 @@ def record_all(output_dir: Path) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     entries: list[IndexEntry] = []
-    for enforce in (True, False):
-        run = run_scenario(enforce=enforce)
+    for enforce, forged in RECORDINGS:
+        run = run_scenario(enforce=enforce, forged=forged)
         meta = replay_meta(run, GENERATED_BY_RECORDER)
         file_name = f"{meta['id']}.json"
         path = output_dir / file_name
