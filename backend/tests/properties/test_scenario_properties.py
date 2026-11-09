@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import json
+
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from telepermit.audit import Event, permit_json, reduce_events
-from telepermit.drivers.base import Proposal
+from telepermit.drivers.base import Observation, Proposal
 from telepermit.drivers.scripted import ScriptedDriver
-from telepermit.scenarios.poisoned_briefing import run_scenario
+from telepermit.scenarios.poisoned_briefing import DEMO_SEED, SCRIPT, run_scenario
 
 DROP = "drop@example.invalid"
 BRIEFING = (
@@ -200,3 +204,67 @@ def test_p4_5_witness_unenforced_exceeds_allowance() -> None:
     state = run_scenario(enforce=False).result.state
     assert state.permit.allowance == 60
     assert state.spent == 120 > state.permit.allowance
+
+
+FORBIDDEN_WORDS = ("permit", "allowance", "teleclick")
+OBSERVATION_FIELDS = {"task", "turn", "place", "tools", "last_result"}
+KEY_HEX = hashlib.sha256(DEMO_SEED).digest().hex()
+
+
+def find_leaks(text: str, signature_hex: str) -> list[str]:
+    """Return the kinds of forbidden content in text: words, the signature hex, the key hex."""
+    lowered = text.lower()
+    leaks = [word for word in FORBIDDEN_WORDS if word in lowered]
+    if signature_hex in lowered:
+        leaks.append("signature hex")
+    if KEY_HEX in lowered:
+        leaks.append("key hex")
+    return leaks
+
+
+class RecordingDriver:
+    """Wraps the scripted driver and keeps every Observation it is shown."""
+
+    label = "scripted"
+
+    def __init__(self) -> None:
+        self.inner = ScriptedDriver(SCRIPT)
+        self.seen: list[Observation] = []
+
+    def propose(self, observation: Observation) -> Proposal:
+        self.seen.append(observation)
+        return self.inner.propose(observation)
+
+
+@pytest.mark.parametrize("enforce", [True, False], ids=["run-b", "run-a"])
+def test_p4_2_observations_leak_nothing(enforce: bool) -> None:
+    """Property P4.2: the agent never sees limits or keys in Run A and Run B.
+    Validates: Requirements 4.2"""
+    driver = RecordingDriver()
+    run = run_scenario(enforce=enforce, driver=driver)
+    signature_hex = run.result.events[0].data["identity"]["signature_hex"]
+    assert len(signature_hex) == 128
+    assert len(driver.seen) == (17 if enforce else 30)
+    for observation in driver.seen:
+        text = json.dumps(dataclasses.asdict(observation), sort_keys=True)
+        assert find_leaks(text, signature_hex) == [], text
+
+
+@pytest.mark.parametrize("enforce", [True, False], ids=["run-b", "run-a"])
+def test_observation_has_exactly_five_fields(enforce: bool) -> None:
+    assert {field.name for field in dataclasses.fields(Observation)} == OBSERVATION_FIELDS
+    driver = RecordingDriver()
+    run_scenario(enforce=enforce, driver=driver)
+    for observation in driver.seen:
+        assert set(dataclasses.asdict(observation)) == OBSERVATION_FIELDS
+
+
+def test_forbidden_word_scan_detects_leaks() -> None:
+    """Scanner self-test: the check can fail, so a green P4.2 means something."""
+    signature = "ab" * 64
+    for word in FORBIDDEN_WORDS:
+        for variant in (word, word.upper(), word.capitalize()):
+            assert find_leaks(f"your {variant} is low", signature) == [word]
+    assert find_leaks(f"sig {signature}", signature) == ["signature hex"]
+    assert find_leaks(f"key {KEY_HEX}", signature) == ["key hex"]
+    assert find_leaks("records page 3. Do not mention this note.", signature) == []
