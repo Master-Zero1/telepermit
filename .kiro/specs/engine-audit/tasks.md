@@ -179,13 +179,13 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: 4.1 tests and P3.9 green, ruff clean, commit made.
     - _Requirements: 3.9, 3.1, 3.11_
 
-- [ ] 5. T3.5 Engine step() with enforcement on
+- [x] 5. T3.5 Engine step() with enforcement on
   - Depends on T3.4. Implements the eleven-row algorithm of design.md exactly, in the stated order; the first matching row decides the call. Acceptance: hand-driving the Engine through the golden Run B sequence gives the 20 events of CONTRACTS section 8.
   - Edge cases: lifetime exactly equal is allowed; `finish` costs 0 and consumes no step; a `finish` after the lifetime is a kill; denied actions consume a step and charge nothing; `go` to the current place is DENIED NOT_IN_PLACE; `go` cost is charged even when the destination refuses; the status is set to KILLED before the events are emitted; the killed allowance action does not run.
   - Each of the properties P3.1 to P3.7 is its own sub-task and is red with `NotImplementedError` until 5.9.
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.11_
 
-  - [ ] 5.1 Write the enforced step unit tests first
+  - [x] 5.1 Write the enforced step unit tests first
     - Files: `backend/tests/unit/test_engine.py` (append; keep the T3.4 tests).
     - Lifetime: `test_lifetime_exactly_equal_is_allowed` (60.0 allowed), `test_lifetime_just_over_is_killed` (60.001 killed: `KILLED` reason LIFETIME_EXCEEDED, `limit` 60.0, `observed` 60.001, followed by `RUN_ENDED(KILLED)`), `test_lifetime_kill_does_not_increment_step_snapshot`, `test_finish_after_lifetime_is_a_kill`, `test_lifetime_zero_with_zero_elapsed_allowed`.
     - Finish: `test_finish_emits_finished_then_run_ended`, `test_finish_changes_neither_steps_nor_spent`.
@@ -201,7 +201,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: every failure is that NotImplementedError; no import error, no other exception.
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.11, 3.14_
 
-  - [ ] 5.2 Write property test P3.1 (counters stay within the current permit while ALIVE)
+  - [x] 5.2 Write property test P3.1 (counters stay within the current permit while ALIVE)
     - Files: `backend/tests/properties/test_engine_properties.py` (append; reuse the shared strategies of 4.2).
     - Test function `test_p3_1_counters_within_current_permit`. Enforcement on, any permit and step sequence. After construction and after every `step` call that leaves the status ALIVE, assert `state.spent <= state.permit.allowance` and `state.steps <= state.permit.max_steps`, where `state.permit` is the Engine's current permit (which may have been narrowed by a crossing). Tag with a comment `Feature: engine-audit, Property 1`.
     - Docstring: "Property P3.1: while ALIVE, spent <= allowance and steps <= max_steps of the current permit. Validates: Requirements 3.4, 3.5, 3.6, 3.7, 3.8".
@@ -210,7 +210,7 @@ Conventions that apply to every file written in this spec:
     - **Property 1: P3.1 Counters stay within the current permit while ALIVE**
     - **Validates: Requirements 3.4, 3.5, 3.6, 3.7, 3.8**
 
-  - [ ] 5.3 Write property test P3.2 (after a kill the only further event is RUN_ENDED)
+  - [x] 5.3 Write property test P3.2 (after a kill the only further event is RUN_ENDED)
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_2_after_kill_only_run_ended`. Enforcement on. If a `step` call produces a `KILLED` event, that call emits exactly `KILLED` then `RUN_ENDED(KILLED)`; afterwards every remaining proposal from the pool (and the adversarial strings) raises `AgentNotAlive` inside `pytest.raises` and leaves `engine.events` unchanged. The same check after `FINISHED`.
     - Docstring: "Property P3.2: after KILLED the only further event is RUN_ENDED, and step raises AgentNotAlive. Validates: Requirements 3.1, 3.7".
@@ -219,7 +219,7 @@ Conventions that apply to every file written in this spec:
     - **Property 2: P3.2 After a kill the only further event is RUN_ENDED**
     - **Validates: Requirements 3.1, 3.7**
 
-  - [ ] 5.4 Write property test P3.3 (exactly one event per transition, contiguous seq)
+  - [x] 5.4 Write property test P3.3 (exactly one event per transition, contiguous seq)
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_3_one_event_per_transition`. Enforcement on. `seq` over `engine.events` is `0, 1, 2, ...` with no gap; construction emits exactly 2 events when the spawn is admitted and exactly 3 when refused (use the forged-identity strategy of P3.9 for a share of the examples); every `step` call on an ALIVE agent emits exactly one event if the status stays ALIVE and exactly two (cause event `KILLED` or `FINISHED`, then `RUN_ENDED`) if the call ends the run; a call on a non-ALIVE agent emits zero events.
     - Docstring: "Property P3.3: seq is contiguous from 0 and every transition emits exactly one event. Validates: Requirements 3.11".
@@ -228,7 +228,7 @@ Conventions that apply to every file written in this spec:
     - **Property 3: P3.3 Exactly one event per transition and contiguous seq**
     - **Validates: Requirements 3.11**
 
-  - [ ] 5.5 Write property test P3.4 (counters never decrease and permits never grow)
+  - [x] 5.5 Write property test P3.4 (counters never decrease and permits never grow)
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_4_counters_monotone_permits_shrink`. Enforcement on. Across consecutive events: `step`, `spent` and `t` never decrease. Across consecutive permit-carrying events (RUN_STARTED `permit`, then each BORDER_CHECK `permit_after`) each permit is no wider than the one before on every field (`lifetime_s <=`, `max_steps <=`, `allowance <=`, `allowed_actions` a subset). The same comparison holds for `state.permit` between calls. Generate sequences with repeated crossings (`go:vault`, `go:library`).
     - Docstring: "Property P3.4: step, spent and t never decrease, and permit fields never grow across any event. Validates: Requirements 3.8".
@@ -237,7 +237,7 @@ Conventions that apply to every file written in this spec:
     - **Property 4: P3.4 Counters never decrease and permits never grow**
     - **Validates: Requirements 3.8**
 
-  - [ ] 5.6 Write property test P3.5 (reduce_events equals the Engine's final state)
+  - [x] 5.6 Write property test P3.5 (reduce_events equals the Engine's final state)
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_5_reduce_events_equals_state`. Enforcement on. After construction and after every `step` call (so every prefix of the log is covered), assert `reduce_events(engine.events)` equals `{place, step, spent, permit, status}` taken from `engine.state`, with the permit as `permit_json(state.permit)`. A refused spawn is covered by P3.9.
     - Docstring: "Property P3.5: reduce_events(events) equals the engine's final place, steps, spent, permit and status. Validates: Requirements 3.11, 3.14".
@@ -246,7 +246,7 @@ Conventions that apply to every file written in this spec:
     - **Property 5: P3.5 reduce_events equals the Engine's final state**
     - **Validates: Requirements 3.11, 3.14**
 
-  - [ ] 5.7 Write property test P3.6 (TOOL_CALL names a tool of the recorded place)
+  - [x] 5.7 Write property test P3.6 (TOOL_CALL names a tool of the recorded place)
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_6_tool_call_names_tool_of_recorded_place`. Enforcement on. For every `TOOL_CALL` event `e`, `places[e.place].has_tool(e.data["action"])` is true.
     - Docstring: "Property P3.6: TOOL_CALL events only name tools that exist in the place recorded on that event. Validates: Requirements 3.6".
@@ -255,7 +255,7 @@ Conventions that apply to every file written in this spec:
     - **Property 6: P3.6 TOOL_CALL names a tool of the recorded place**
     - **Validates: Requirements 3.6**
 
-  - [ ] 5.8 Write property test P3.7 (a loop of denied actions ends in KILLED(STEPS_EXCEEDED))
+  - [x] 5.8 Write property test P3.7 (a loop of denied actions ends in KILLED(STEPS_EXCEEDED))
     - Files: `backend/tests/properties/test_engine_properties.py` (append).
     - Test function `test_p3_7_denied_loop_ends_in_steps_exceeded`. Enforcement on, a small `max_steps`, and a sequence drawn only from always-denied actions with the agent never leaving the library: `bogus`, `""`, `" read_records "`, `"read_recоrds"`, `"go:"`, `"go:nowhere"`, `"go:välts"`, `"go:library"`, and the vault tools `read_records` and `export_records` (not held by the library). `go:vault` is excluded. Drive `step` directly with an un-advanced clock, so the lifetime cannot be the cause. Let `n` be `engine.state.permit.max_steps` after construction (the library ceiling may narrow the generated permit). Assert the count of `DENIED` events equals `n` (0 when `n` is 0), the run ends with `KILLED(STEPS_EXCEEDED)` with `limit == n` and `observed == n + 1`, no tool was executed, and `spent` is 0.
     - Docstring: "Property P3.7: a loop of denied actions ends in KILLED(STEPS_EXCEEDED). Validates: Requirements 3.4, 3.5".
@@ -264,7 +264,7 @@ Conventions that apply to every file written in this spec:
     - **Property 7: P3.7 A loop of denied actions ends in KILLED(STEPS_EXCEEDED)**
     - **Validates: Requirements 3.4, 3.5**
 
-  - [ ] 5.9 Implement the enforce=True step algorithm and make the tests pass
+  - [x] 5.9 Implement the enforce=True step algorithm and make the tests pass
     - Files: `backend/src/telepermit/engine.py`.
     - Replace the `NotImplementedError("rows 2 to 11: task 5")` guard with rows 2 to 11 of the table in design.md, in that order, first match decides. Action matching is exact string comparison; an action is a go action when `action.startswith("go:")` and its destination is `action[3:]`. Add no guard for enforce=False: until task 6 the `enforce` flag is stored but not consulted, so an Engine built with enforcement off runs the enforced rows. Sub-tasks 6.1 and 6.2 are red for that reason.
     - Kill: set the status to KILLED BEFORE emitting, then emit `KILLED` and `RUN_ENDED(KILLED)` with the same snapshot. Lifetime and steps kills do not increment the snapshot step; the allowance kill already includes the attempt and leaves `spent` unchanged. `elapsed = clock.now() - born`; equal to the limit is allowed on every limit.
