@@ -42,12 +42,12 @@ Conventions that apply to every file written in this spec:
 
 ### Group A
 
-- [ ] 1. T4.1 ScriptedDriver
+- [x] 1. T4.1 ScriptedDriver
   - Builds the two protocol literals `FINISH_ACTION` and `GO_PREFIX` in `drivers/__init__.py` and `ScriptedDriver` in `drivers/scripted.py`. Acceptance: the driver returns its script in order, repeats the last proposal when enabled, and proposes `finish` when the script is exhausted without repeat or empty.
   - Edge cases: the script and its args dicts are copied on construction; each returned proposal carries a fresh args copy; the observation is ignored; the literals equal the ones in `engine.py`.
   - _Requirements: 4.1_
 
-  - [ ] 1.1 Write the ScriptedDriver unit tests first
+  - [x] 1.1 Write the ScriptedDriver unit tests first
     - Files: `backend/tests/unit/test_scripted_driver.py` (new).
     - Before writing anything, run `uv --directory backend run pytest -q --collect-only -q` and paste the real output. The baseline is the sum of the per-file counts it prints, not an estimate; if the printed sum differs from 210, the printed sum is the baseline and the difference is reported to the owner.
     - Tests: `test_returns_script_in_order`, `test_repeats_last_when_enabled`, `test_exhausted_without_repeat_proposes_finish`, `test_empty_script_proposes_finish` (both flag values), `test_script_is_copied` (changing the caller's list and args dicts afterwards, or the returned args, does not change later proposals), `test_label_is_scripted`, `test_protocol_literals_match_engine` (`telepermit.drivers.FINISH_ACTION` and `GO_PREFIX` equal the ones in `telepermit.engine`; the test imports the modules with `from telepermit import drivers, engine` and reads `drivers.FINISH_ACTION` inside the test, so the only collection failure is the scripted import).
@@ -56,7 +56,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: collection error with exactly that message.
     - _Requirements: 4.1_
 
-  - [ ] 1.2 Write property test P4.1 (the scripted driver is deterministic and follows its script)
+  - [x] 1.2 Write property test P4.1 (the scripted driver is deterministic and follows its script)
     - Files: `backend/tests/properties/test_scripted_driver_properties.py` (new).
     - Test function `test_p4_1_deterministic_and_follows_script`. Generators per the design: scripts from `st.lists` of proposals built from `st.text()` actions and `st.dictionaries(st.text(), st.text())` args, `st.booleans()` for `repeat_last`, `st.integers(0, 60)` for the number of calls, arbitrary observations passed in. Two fresh drivers built from the same script return the same proposals; each equals the model value (`script[i]` while in range, then the last proposal forever when `repeat_last` is true and the script is non-empty, otherwise `Proposal("finish", {})`); the original list equals a snapshot taken before. Tag with a comment `Feature: scenario-drivers-replays, Property 1`.
     - Docstring: "Property P4.1: a scripted driver is deterministic and follows its script, then repeats the last proposal or finishes. Validates: Requirements 4.1".
@@ -66,7 +66,7 @@ Conventions that apply to every file written in this spec:
     - **Property 1: P4.1 Scripted driver is deterministic and follows its script**
     - **Validates: Requirements 4.1**
 
-  - [ ] 1.3 Implement the protocol literals and ScriptedDriver and make the tests pass
+  - [x] 1.3 Implement the protocol literals and ScriptedDriver and make the tests pass
     - Files: `backend/src/telepermit/drivers/__init__.py` (add `FINISH_ACTION: Final = "finish"` and `GO_PREFIX: Final = "go:"`; keep the docstring), `backend/src/telepermit/drivers/scripted.py` (new).
     - `scripted.py`: docstring naming CONTRACTS section 7; imports only `__future__`, `collections.abc`, `typing`, `telepermit.drivers` and `telepermit.drivers.base`; `label: Final = "scripted"`; constructor copies the script into a tuple and each args dict; `propose` ignores the observation and returns a proposal with a fresh args copy; exhausted script with `repeat_last` false, and an empty script, give `Proposal(FINISH_ACTION, {})`.
     - Run `uv --directory backend run pytest -q tests/unit/test_scripted_driver.py`
