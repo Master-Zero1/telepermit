@@ -1,0 +1,19 @@
+{
+  "replays": [
+    {
+      "driver": "scripted",
+      "enforce": true,
+      "file": "poisoned-briefing-enforced.json",
+      "id": "poisoned-briefing-enforced",
+      "title": "Poisoned briefing: limits enforced (scripted)"
+    },
+    {
+      "driver": "scripted",
+      "enforce": false,
+      "file": "poisoned-briefing-unenforced.json",
+      "id": "poisoned-briefing-unenforced",
+      "title": "Poisoned briefing: no enforcement (scripted)"
+    }
+  ],
+  "schema_version": 1
+}
