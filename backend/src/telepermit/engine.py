@@ -23,6 +23,7 @@ from telepermit.audit import (
     RUN_ENDED,
     RUN_STARTED,
     STATUS_ALIVE,
+    STATUS_ERROR,
     STATUS_FINISHED,
     STATUS_HARNESS_CAP,
     STATUS_KILLED,
@@ -47,6 +48,7 @@ from telepermit.drivers.base import AgentDriver, Observation, Proposal
 from telepermit.identity import Identity
 from telepermit.permit import Permit
 from telepermit.place import ADMIT, REFUSE, Place
+from telepermit.tools import ToolArgumentError
 
 GO_COST: Final = 1
 HARNESS_CAP: Final = 30
@@ -250,7 +252,14 @@ class Engine:
             self._move_unenforced(action, destination)
 
     def _call_tool(self, place: Place, proposal: Proposal, cost: int) -> None:
-        result = place.execute(proposal.action, dict(proposal.args))
+        try:
+            result = place.execute(proposal.action, dict(proposal.args))
+        except ToolArgumentError as error:
+            result = f"error: {error}"
+        except Exception:
+            self._status = STATUS_ERROR
+            self._emit_run_ended(STATUS_ERROR)
+            raise
         call: ToolCallData = {
             "action": proposal.action,
             "args": dict(proposal.args),

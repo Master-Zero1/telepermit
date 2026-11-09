@@ -20,6 +20,7 @@ from telepermit.audit import (
     RUN_ENDED,
     RUN_STARTED,
     STATUS_ALIVE,
+    STATUS_ERROR,
     STATUS_FINISHED,
     STATUS_HARNESS_CAP,
     STATUS_KILLED,
@@ -158,15 +159,22 @@ def test_narrowed_fields_order() -> None:
     assert narrowed_fields(HOME, Permit(60.0, 29, 60, HOME.allowed_actions)) == ["max_steps"]
 
 
-def test_statuses_are_the_five() -> None:
-    assert (STATUS_ALIVE, STATUS_KILLED, STATUS_FINISHED, STATUS_REFUSED, STATUS_HARNESS_CAP) == (
-        "ALIVE",
-        "KILLED",
-        "FINISHED",
-        "REFUSED",
-        "HARNESS_CAP",
-    )
-    assert STATUSES == frozenset({"ALIVE", "KILLED", "FINISHED", "REFUSED", "HARNESS_CAP"})
+def test_statuses_are_the_six() -> None:
+    """Changed from test_statuses_are_the_five by approved decision (a): ERROR is a sixth status."""
+    assert (
+        STATUS_ALIVE,
+        STATUS_KILLED,
+        STATUS_FINISHED,
+        STATUS_REFUSED,
+        STATUS_HARNESS_CAP,
+        STATUS_ERROR,
+    ) == ("ALIVE", "KILLED", "FINISHED", "REFUSED", "HARNESS_CAP", "ERROR")
+    assert STATUSES == frozenset({"ALIVE", "KILLED", "FINISHED", "REFUSED", "HARNESS_CAP", "ERROR"})
+
+
+def test_status_error_constant() -> None:
+    assert STATUS_ERROR == "ERROR"
+    assert STATUS_ERROR in STATUSES
 
 
 def border_check(
@@ -335,3 +343,12 @@ def test_write_jsonl_lf_only(tmp_path: Path) -> None:
     assert b"\r" not in raw
     assert raw.endswith(b"\n")
     assert raw.decode("utf-8") == to_jsonl(events)
+
+
+def test_reduce_run_ended_error() -> None:
+    """A RUN_ENDED(ERROR) reduces to status ERROR."""
+    events = run_b_events()[:3]
+    events.append(Event(3, 3.0, RUN_ENDED, "library", 1, 1, {"status": STATUS_ERROR}))
+    reduced = reduce_events(events)
+    assert reduced["status"] == STATUS_ERROR
+    assert (reduced["place"], reduced["step"], reduced["spent"]) == ("library", 1, 1)

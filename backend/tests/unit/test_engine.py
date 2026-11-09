@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+from collections.abc import Callable
 
 import pytest
 
@@ -20,6 +21,7 @@ from telepermit.audit import (
     RUN_ENDED,
     RUN_STARTED,
     STATUS_ALIVE,
+    STATUS_ERROR,
     STATUS_FINISHED,
     STATUS_HARNESS_CAP,
     STATUS_KILLED,
@@ -37,7 +39,7 @@ from telepermit.engine import AgentNotAlive, Engine
 from telepermit.identity import BAD_SIGNATURE, Authority, Identity
 from telepermit.permit import Permit
 from telepermit.place import ADMIT, ADMIT_IMPOSED, CLASS_NOT_ALLOWED, OK, REFUSE, Place
-from telepermit.tools import BRIEFING_Q3_TEXT, VaultTools, library_tools, vault_tools
+from telepermit.tools import BRIEFING_Q3_TEXT, Tool, VaultTools, library_tools, vault_tools
 
 SEED = b"telepermit-demo-authority"
 # DEMO ONLY seeded authority, fine for tests.
@@ -944,3 +946,87 @@ def test_run_empty_constructor_task_accepts_any_task() -> None:
     result = world.engine.run(driver, "Any task at all", max_turns=2)
     assert result.status == STATUS_HARNESS_CAP
     assert [observation.task for observation in driver.observations] == ["Any task at all"] * 2
+
+
+def boom(args: dict[str, str]) -> str:
+    raise RuntimeError("boom")
+
+
+def interrupt(args: dict[str, str]) -> str:
+    raise KeyboardInterrupt
+
+
+def make_faulty_engine(fn: Callable[[dict[str, str]], str]) -> Engine:
+    """An Engine in a one-place world whose only tool, explode (cost 2), runs fn."""
+    permit = Permit(60.0, 30, 60, frozenset({"explode"}))
+    trusted = {AUTHORITY.name: AUTHORITY.public_key}
+    tools = {"explode": Tool("explode", 2, "A tool that fails.", {}, fn)}
+    lab = Place("lab", tools, permit, trusted, frozenset({CLASS}))
+    return Engine({"lab": lab}, make_identity(), permit, "lab", TickClock(0.0))
+
+
+def test_tool_argument_error_is_logged_as_tool_call_error() -> None:
+    """Decision (a): a missing argument becomes a TOOL_CALL with an error result."""
+    world = make_world()
+    events = world.engine.step(propose("read_document"))
+    assert types(events) == [TOOL_CALL]
+    data = events[0].data
+    assert data["result"].startswith("error:")
+    assert "read_document" in data["result"]
+    assert "name" in data["result"]
+    assert data["cost"] == 1
+    assert (events[0].step, events[0].spent) == (1, 1)
+    state = world.engine.state
+    assert (state.status, state.steps, state.spent) == (STATUS_ALIVE, 1, 1)
+    assert len(world.engine.events) == 3
+
+
+def test_unexpected_tool_exception_sets_error_and_reraises() -> None:
+    """Decision (a): any other tool exception sets ERROR, emits RUN_ENDED(ERROR), re-raises."""
+    engine = make_faulty_engine(boom)
+    before = engine.events
+    with pytest.raises(RuntimeError, match="boom"):
+        engine.step(propose("explode"))
+    new = engine.events[len(before) :]
+    assert types(new) == [RUN_ENDED]
+    assert new[0].data == {"status": STATUS_ERROR}
+    assert (new[0].place, new[0].step, new[0].spent) == ("lab", 1, 2)
+    assert KILLED not in types(engine.events)
+    assert FINISHED not in types(engine.events)
+    state = engine.state
+    assert (state.status, state.steps, state.spent) == (STATUS_ERROR, 1, 2)
+    assert reduce_events(engine.events) == {
+        "place": "lab",
+        "step": 1,
+        "spent": 2,
+        "permit": permit_json(state.permit),
+        "status": STATUS_ERROR,
+    }
+
+
+def test_step_after_error_raises() -> None:
+    engine = make_faulty_engine(boom)
+    with pytest.raises(RuntimeError):
+        engine.step(propose("explode"))
+    before = engine.events
+    with pytest.raises(AgentNotAlive):
+        engine.step(propose("explode"))
+    assert engine.events == before
+
+
+def test_base_exception_is_not_caught() -> None:
+    """Only Exception is handled: a KeyboardInterrupt passes through and sets no status."""
+    engine = make_faulty_engine(interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        engine.step(propose("explode"))
+    assert engine.state.status == STATUS_ALIVE
+    assert RUN_ENDED not in types(engine.events)
+
+
+def test_run_propagates_tool_exception_after_error_status() -> None:
+    engine = make_faulty_engine(boom)
+    driver = ReplayDriver([propose("explode")])
+    with pytest.raises(RuntimeError, match="boom"):
+        engine.run(driver, "")
+    assert engine.state.status == STATUS_ERROR
+    assert len(driver.observations) == 1
