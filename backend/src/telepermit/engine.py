@@ -1,7 +1,8 @@
 """The Engine: the only executor of tools (CONTRACTS section 5).
 
-This first part builds construction, the spawn border check, state and events. The step
-algorithm and the run loop arrive in later tasks.
+It meters every action, applies the step algorithm in the order of CONTRACTS section 5, destroys
+the agent on a breach and emits one audit event per state transition. The run loop arrives in a
+later task.
 """
 
 from __future__ import annotations
@@ -11,16 +12,31 @@ from dataclasses import dataclass
 from typing import Final
 
 from telepermit.audit import (
+    ALLOWANCE_EXCEEDED,
     BORDER_CHECK,
+    DENIED,
+    FINISHED,
+    KILLED,
+    LIFETIME_EXCEEDED,
+    NOT_IN_PERMIT,
+    NOT_IN_PLACE,
     RUN_ENDED,
     RUN_STARTED,
     STATUS_ALIVE,
+    STATUS_FINISHED,
+    STATUS_KILLED,
     STATUS_REFUSED,
+    STEPS_EXCEEDED,
+    TOOL_CALL,
     BorderCheckData,
+    DeniedData,
     Event,
     EventData,
+    FinishedData,
+    KilledData,
     RunEndedData,
     RunStartedData,
+    ToolCallData,
     narrowed_fields,
     permit_json,
 )
@@ -32,6 +48,8 @@ from telepermit.place import REFUSE, Place
 
 GO_COST: Final = 1
 HARNESS_CAP: Final = 30
+FINISH_ACTION: Final = "finish"
+GO_PREFIX: Final = "go:"
 
 
 class AgentNotAlive(RuntimeError):
@@ -116,10 +134,114 @@ class Engine:
         return list(self._events)
 
     def step(self, proposal: Proposal) -> list[Event]:
-        """Apply one proposal. Row 1 is done here; rows 2 to 11 arrive in task 5."""
+        """Apply one proposal and return the events this call emitted.
+
+        The rows of the algorithm run strictly in order and the first one that matches decides
+        the call. The enforce flag is stored but not consulted yet, so every Engine runs the
+        enforced rows.
+        """
         if self._status != STATUS_ALIVE:
             raise AgentNotAlive(f"agent is {self._status}")
-        raise NotImplementedError("rows 2 to 11: task 5")
+        first = len(self._events)
+        self._apply(proposal)
+        return self._events[first:]
+
+    def _apply(self, proposal: Proposal) -> None:
+        action = proposal.action
+        permit = self._permit
+        elapsed = self._clock.now() - self._born
+        if elapsed > permit.lifetime_s:
+            self._kill(LIFETIME_EXCEEDED, action, permit.lifetime_s, elapsed)
+            return
+        if action == FINISH_ACTION:
+            self._status = STATUS_FINISHED
+            finished: FinishedData = {}
+            self._emit(FINISHED, finished)
+            self._emit_run_ended(STATUS_FINISHED)
+            return
+        if self._steps + 1 > permit.max_steps:
+            self._kill(STEPS_EXCEEDED, action, permit.max_steps, self._steps + 1)
+            return
+        self._steps += 1
+        if action not in permit.allowed_actions:
+            self._deny(action, NOT_IN_PERMIT)
+            return
+        place = self._places[self._place]
+        is_go = action.startswith(GO_PREFIX)
+        destination = action[len(GO_PREFIX) :]
+        if is_go:
+            available = destination in self._places and destination != self._place
+        else:
+            available = place.has_tool(action)
+        if not available:
+            self._deny(action, NOT_IN_PLACE)
+            return
+        cost = GO_COST if is_go else place.tool_cost(action)
+        if self._spent + cost > permit.allowance:
+            self._kill(ALLOWANCE_EXCEEDED, action, permit.allowance, self._spent + cost)
+            return
+        self._spent += cost
+        if is_go:
+            self._cross(action, destination, elapsed)
+        else:
+            self._call_tool(place, proposal, cost)
+
+    def _call_tool(self, place: Place, proposal: Proposal, cost: int) -> None:
+        result = place.execute(proposal.action, dict(proposal.args))
+        call: ToolCallData = {
+            "action": proposal.action,
+            "args": dict(proposal.args),
+            "cost": cost,
+            "result": result,
+        }
+        self._emit(TOOL_CALL, call)
+
+    def _cross(self, action: str, destination: str, elapsed: float) -> None:
+        before = self._permit
+        admission = self._places[destination].admit(
+            self._identity, before, self._steps, self._spent, elapsed
+        )
+        after = before
+        if admission.decision != REFUSE and admission.permit_after is not None:
+            after = admission.permit_after
+            self._place = destination
+            self._permit = after
+        border: BorderCheckData = {
+            "place": destination,
+            "via_action": action,
+            "decision": admission.decision,
+            "reason": admission.reason,
+            "permit_after": permit_json(after),
+            "narrowed_fields": narrowed_fields(before, after),
+            "cost": GO_COST,
+            "explain": f"{destination}: {admission.decision} ({admission.reason})",
+        }
+        self._emit(BORDER_CHECK, border)
+
+    def _deny(self, action: str, reason: str) -> None:
+        denied: DeniedData = {
+            "action": action,
+            "reason": reason,
+            "explain": f"action {action!r} was denied: {reason}",
+        }
+        self._emit(DENIED, denied)
+
+    def _kill(self, reason: str, action: str, limit: float, observed: float) -> None:
+        """Set the status first, then emit KILLED and RUN_ENDED with the same snapshot."""
+        self._status = STATUS_KILLED
+        killed: KilledData = {
+            "reason": reason,
+            "action": action,
+            "limit": limit,
+            "observed": observed,
+            "explain": f"{reason}: limit {limit}, observed {observed}",
+        }
+        self._emit(KILLED, killed)
+        self._emit_run_ended(STATUS_KILLED)
+
+    def _emit_run_ended(self, status: str) -> None:
+        ended: RunEndedData = {"status": status}
+        self._emit(RUN_ENDED, ended)
 
     def _emit(self, event_type: str, data: EventData) -> Event:
         """The only writer of the log. It reads the state AFTER the transition."""
@@ -151,7 +273,6 @@ class Engine:
         self._emit(BORDER_CHECK, border)
         if admission.decision == REFUSE:
             self._status = STATUS_REFUSED
-            ended: RunEndedData = {"status": STATUS_REFUSED}
-            self._emit(RUN_ENDED, ended)
+            self._emit_run_ended(STATUS_REFUSED)
         else:
             self._permit = after

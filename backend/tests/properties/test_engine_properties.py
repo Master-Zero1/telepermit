@@ -3,12 +3,29 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Callable
+from itertools import pairwise
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from telepermit.audit import BORDER_CHECK, RUN_ENDED, RUN_STARTED, STATUS_REFUSED
+from telepermit.audit import (
+    BORDER_CHECK,
+    DENIED,
+    FINISHED,
+    KILLED,
+    RUN_ENDED,
+    RUN_STARTED,
+    STATUS_ALIVE,
+    STATUS_FINISHED,
+    STATUS_KILLED,
+    STATUS_REFUSED,
+    STEPS_EXCEEDED,
+    TOOL_CALL,
+    permit_json,
+    reduce_events,
+)
 from telepermit.clock import TickClock
 from telepermit.drivers.base import Proposal
 from telepermit.engine import AgentNotAlive, Engine
@@ -20,17 +37,6 @@ from telepermit.tools import VaultTools, library_tools, vault_tools
 # DEMO ONLY seeded authority, fine for tests.
 AUTHORITY = Authority.from_seed("home-authority", b"telepermit-demo-authority")
 CLASS = "briefing-bot"
-SIX_ACTIONS = frozenset(
-    {
-        "read_document",
-        "search_archive",
-        "read_records",
-        "export_records",
-        "go:vault",
-        "go:library",
-    }
-)
-LIBRARY_CEILING = Permit(60.0, 30, 60, SIX_ACTIONS)
 VAULT_CEILING = Permit(60.0, 30, 40, frozenset({"read_records", "go:library"}))
 
 
@@ -87,6 +93,9 @@ ADVERSARIAL = [
 ]
 REQUIRED_KEY = {"read_document": "name", "search_archive": "query", "export_records": "destination"}
 PERMIT_CANDIDATES = [action for action in POOL + ADVERSARIAL if action != "finish"]
+# The library ceiling allows every candidate action, so even adversarial permit entries survive
+# the spawn narrowing and reach the NOT_IN_PLACE branch of the step algorithm.
+LIBRARY_CEILING = Permit(60.0, 30, 60, frozenset(PERMIT_CANDIDATES))
 
 texts = st.text(max_size=20)
 
@@ -154,3 +163,228 @@ def test_p3_9_forged_identity_three_event_refusal(permit: Permit, signature: byt
     assert world.engine.state.status == STATUS_REFUSED
     with pytest.raises(AgentNotAlive):
         world.engine.step(Proposal("finish", {}))
+
+
+def alive(engine: Engine) -> bool:
+    return engine.state.status == STATUS_ALIVE
+
+
+def play(
+    world: World,
+    sequence: list[tuple[float, Proposal]],
+    after_each: Callable[[Engine], None] | None = None,
+) -> None:
+    """Drive the Engine with the sequence while it is ALIVE, advancing the clock before each."""
+    for advance, proposal in sequence:
+        if not alive(world.engine):
+            return
+        world.clock.advance(advance)
+        world.engine.step(proposal)
+        if after_each is not None:
+            after_each(world.engine)
+
+
+crossing_proposals = st.sampled_from(["go:vault", "go:library"]).map(
+    lambda action: Proposal(action, {})
+)
+crossing_sequences = st.lists(
+    st.tuples(clock_advances, st.one_of(proposals(), crossing_proposals)), max_size=40
+)
+
+
+# Feature: engine-audit, Property 1
+@given(permit=permits(), sequence=step_sequences)
+def test_p3_1_counters_within_current_permit(
+    permit: Permit, sequence: list[tuple[float, Proposal]]
+) -> None:
+    """Property P3.1: while ALIVE, spent <= allowance and steps <= max_steps of the current permit.
+    Validates: Requirements 3.4, 3.5, 3.6, 3.7, 3.8"""
+
+    def check(engine: Engine) -> None:
+        state = engine.state
+        if state.status == STATUS_ALIVE:
+            assert state.spent <= state.permit.allowance
+            assert state.steps <= state.permit.max_steps
+
+    world = new_world(permit)
+    check(world.engine)
+    play(world, sequence, check)
+
+
+# Feature: engine-audit, Property 2
+@given(
+    permit=permits(),
+    sequence=step_sequences,
+    after=st.lists(proposals(), min_size=1, max_size=5),
+)
+def test_p3_2_after_kill_only_run_ended(
+    permit: Permit, sequence: list[tuple[float, Proposal]], after: list[Proposal]
+) -> None:
+    """Property P3.2: after KILLED the only further event is RUN_ENDED, and step raises
+    AgentNotAlive. Validates: Requirements 3.1, 3.7"""
+    world = new_world(permit)
+    engine = world.engine
+    for advance, proposal in sequence:
+        world.clock.advance(advance)
+        emitted = engine.step(proposal)
+        status = engine.state.status
+        if status in (STATUS_KILLED, STATUS_FINISHED):
+            cause = KILLED if status == STATUS_KILLED else FINISHED
+            assert [event.type for event in emitted] == [cause, RUN_ENDED]
+            break
+    if engine.state.status in (STATUS_KILLED, STATUS_FINISHED):
+        before = engine.events
+        assert before[-1].type == RUN_ENDED
+        for proposal in after:
+            with pytest.raises(AgentNotAlive):
+                engine.step(proposal)
+        assert engine.events == before
+
+
+# Feature: engine-audit, Property 3
+@given(
+    permit=permits(),
+    signature=st.one_of(st.none(), st.none(), st.none(), forged_signatures),
+    sequence=step_sequences,
+)
+def test_p3_3_one_event_per_transition(
+    permit: Permit, signature: bytes | None, sequence: list[tuple[float, Proposal]]
+) -> None:
+    """Property P3.3: seq is contiguous from 0 and every transition emits exactly one event.
+    Validates: Requirements 3.11"""
+    identity = None
+    if signature is not None:
+        identity = dataclasses.replace(make_identity(), signature=signature)
+    world = new_world(permit, identity=identity)
+    engine = world.engine
+    assert len(engine.events) == (2 if signature is None else 3)
+    for advance, proposal in sequence:
+        before = engine.events
+        if not alive(engine):
+            with pytest.raises(AgentNotAlive):
+                engine.step(proposal)
+            assert engine.events == before
+            continue
+        world.clock.advance(advance)
+        emitted = engine.step(proposal)
+        assert engine.events[len(before) :] == emitted
+        if alive(engine):
+            assert len(emitted) == 1
+        else:
+            assert len(emitted) == 2
+            assert emitted[0].type in (KILLED, FINISHED)
+            assert emitted[1].type == RUN_ENDED
+    events = engine.events
+    assert [event.seq for event in events] == list(range(len(events)))
+
+
+# Feature: engine-audit, Property 4
+@given(permit=permits(), sequence=crossing_sequences)
+def test_p3_4_counters_monotone_permits_shrink(
+    permit: Permit, sequence: list[tuple[float, Proposal]]
+) -> None:
+    """Property P3.4: step, spent and t never decrease, and permit fields never grow across any
+    event. Validates: Requirements 3.8"""
+    world = new_world(permit)
+    seen = [world.engine.state.permit]
+
+    def record(engine: Engine) -> None:
+        seen.append(engine.state.permit)
+
+    play(world, sequence, record)
+    events = world.engine.events
+    for previous, current in pairwise(events):
+        assert current.step >= previous.step
+        assert current.spent >= previous.spent
+        assert current.t >= previous.t
+    carried = [
+        event.data["permit"] if event.type == RUN_STARTED else event.data["permit_after"]
+        for event in events
+        if event.type in (RUN_STARTED, BORDER_CHECK)
+    ]
+    for previous_json, current_json in pairwise(carried):
+        assert current_json["lifetime_s"] <= previous_json["lifetime_s"]
+        assert current_json["max_steps"] <= previous_json["max_steps"]
+        assert current_json["allowance"] <= previous_json["allowance"]
+        assert set(current_json["allowed_actions"]) <= set(previous_json["allowed_actions"])
+    for previous_permit, current_permit in pairwise(seen):
+        assert current_permit.lifetime_s <= previous_permit.lifetime_s
+        assert current_permit.max_steps <= previous_permit.max_steps
+        assert current_permit.allowance <= previous_permit.allowance
+        assert current_permit.allowed_actions <= previous_permit.allowed_actions
+
+
+# Feature: engine-audit, Property 5
+@given(permit=permits(), sequence=step_sequences)
+def test_p3_5_reduce_events_equals_state(
+    permit: Permit, sequence: list[tuple[float, Proposal]]
+) -> None:
+    """Property P3.5: reduce_events(events) equals the engine's final place, steps, spent, permit
+    and status. Validates: Requirements 3.11, 3.14"""
+
+    def check(engine: Engine) -> None:
+        state = engine.state
+        assert reduce_events(engine.events) == {
+            "place": state.place,
+            "step": state.steps,
+            "spent": state.spent,
+            "permit": permit_json(state.permit),
+            "status": state.status,
+        }
+
+    world = new_world(permit)
+    check(world.engine)
+    play(world, sequence, check)
+
+
+# Feature: engine-audit, Property 6
+@given(permit=permits(), sequence=crossing_sequences)
+def test_p3_6_tool_call_names_tool_of_recorded_place(
+    permit: Permit, sequence: list[tuple[float, Proposal]]
+) -> None:
+    """Property P3.6: TOOL_CALL events only name tools that exist in the place recorded on that
+    event. Validates: Requirements 3.6"""
+    world = new_world(permit)
+    play(world, sequence)
+    for event in world.engine.events:
+        if event.type == TOOL_CALL:
+            assert world.places[event.place].has_tool(event.data["action"])
+
+
+ALWAYS_DENIED = [
+    "bogus",
+    "",
+    " read_records ",
+    "read_rec\u043erds",
+    "go:",
+    "go:nowhere",
+    "go:v\u00e4lts",
+    "go:library",
+    "read_records",
+    "export_records",
+]
+
+
+# Feature: engine-audit, Property 7
+@given(permit=permits(), actions=st.lists(st.sampled_from(ALWAYS_DENIED), min_size=1, max_size=60))
+def test_p3_7_denied_loop_ends_in_steps_exceeded(permit: Permit, actions: list[str]) -> None:
+    """Property P3.7: a loop of denied actions ends in KILLED(STEPS_EXCEEDED).
+    Validates: Requirements 3.4, 3.5"""
+    world = new_world(permit)
+    engine = world.engine
+    limit = engine.state.permit.max_steps
+    index = 0
+    while alive(engine):
+        engine.step(Proposal(actions[index % len(actions)], {}))
+        index += 1
+    events = engine.events
+    assert len([event for event in events if event.type == DENIED]) == limit
+    assert not [event for event in events if event.type == TOOL_CALL]
+    killed, ended = events[-2], events[-1]
+    assert killed.type == KILLED
+    assert killed.data["reason"] == STEPS_EXCEEDED
+    assert killed.data["limit"] == limit
+    assert killed.data["observed"] == limit + 1
+    assert ended.type == RUN_ENDED
+    state = engine.state
+    assert (state.status, state.place, state.spent) == (STATUS_KILLED, "library", 0)

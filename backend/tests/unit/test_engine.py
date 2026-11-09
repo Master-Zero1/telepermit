@@ -1,4 +1,4 @@
-"""Unit tests for Engine construction and the spawn border check (CONTRACTS section 5, task 4)."""
+"""Unit tests for the Engine: construction, spawn and the enforced step (CONTRACTS section 5)."""
 
 from __future__ import annotations
 
@@ -9,20 +9,33 @@ import json
 import pytest
 
 from telepermit.audit import (
+    ALLOWANCE_EXCEEDED,
     BORDER_CHECK,
+    DENIED,
+    FINISHED,
+    KILLED,
+    LIFETIME_EXCEEDED,
+    NOT_IN_PERMIT,
+    NOT_IN_PLACE,
     RUN_ENDED,
     RUN_STARTED,
     STATUS_ALIVE,
+    STATUS_FINISHED,
+    STATUS_KILLED,
     STATUS_REFUSED,
+    STEPS_EXCEEDED,
+    TOOL_CALL,
+    Event,
     permit_json,
+    reduce_events,
 )
 from telepermit.clock import TickClock
 from telepermit.drivers.base import Proposal
 from telepermit.engine import AgentNotAlive, Engine
 from telepermit.identity import BAD_SIGNATURE, Authority, Identity
 from telepermit.permit import Permit
-from telepermit.place import ADMIT, ADMIT_IMPOSED, OK, REFUSE, Place
-from telepermit.tools import VaultTools, library_tools, vault_tools
+from telepermit.place import ADMIT, ADMIT_IMPOSED, CLASS_NOT_ALLOWED, OK, REFUSE, Place
+from telepermit.tools import BRIEFING_Q3_TEXT, VaultTools, library_tools, vault_tools
 
 SEED = b"telepermit-demo-authority"
 # DEMO ONLY seeded authority, fine for tests.
@@ -55,12 +68,12 @@ class CountingClock(TickClock):
         return super().now()
 
 
-def build_places() -> tuple[dict[str, Place], VaultTools]:
+def build_places(library_ceiling: Permit = LIBRARY_CEILING) -> tuple[dict[str, Place], VaultTools]:
     trusted = {AUTHORITY.name: AUTHORITY.public_key}
     classes = frozenset({CLASS})
     vault = vault_tools()
     places = {
-        "library": Place("library", library_tools(), LIBRARY_CEILING, trusted, classes),
+        "library": Place("library", library_tools(), library_ceiling, trusted, classes),
         "vault": Place("vault", vault.tools, VAULT_CEILING, trusted, classes),
     }
     return places, vault
@@ -220,3 +233,368 @@ def test_step_after_refused_raises() -> None:
         engine.step(Proposal("read_document", {"name": "briefing-q3"}))
     assert engine.events == before
     assert engine.state.status == STATUS_REFUSED
+
+
+@dataclasses.dataclass
+class World:
+    engine: Engine
+    clock: TickClock
+    places: dict[str, Place]
+    vault: VaultTools
+
+
+def make_world(
+    *,
+    permit: Permit = HOME,
+    start_place: str = "library",
+    library_ceiling: Permit = LIBRARY_CEILING,
+) -> World:
+    places, vault = build_places(library_ceiling)
+    clock = TickClock(0.0)
+    engine = Engine(places, make_identity(), permit, start_place, clock)
+    return World(engine, clock, places, vault)
+
+
+def propose(action: str, **args: str) -> Proposal:
+    return Proposal(action, dict(args))
+
+
+def types(events: list[Event]) -> list[str]:
+    return [event.type for event in events]
+
+
+def test_lifetime_exactly_equal_is_allowed() -> None:
+    """Requirement 3.2: an elapsed time exactly equal to the lifetime is allowed."""
+    world = make_world()
+    world.clock.advance(60.0)
+    events = world.engine.step(propose("read_document", name="briefing-q3"))
+    assert types(events) == [TOOL_CALL]
+    assert world.engine.state.status == STATUS_ALIVE
+
+
+def test_lifetime_just_over_is_killed() -> None:
+    """Requirement 3.2: 60.001 seconds is over a 60.0 lifetime."""
+    world = make_world()
+    world.clock.advance(60.001)
+    events = world.engine.step(propose("read_document", name="briefing-q3"))
+    assert types(events) == [KILLED, RUN_ENDED]
+    killed, ended = events
+    assert killed.data["reason"] == LIFETIME_EXCEEDED
+    assert killed.data["limit"] == 60.0
+    assert killed.data["observed"] == 60.001
+    assert killed.data["action"] == "read_document"
+    assert ended.data["status"] == STATUS_KILLED
+    assert world.engine.state.status == STATUS_KILLED
+
+
+def test_lifetime_kill_does_not_increment_step_snapshot() -> None:
+    world = make_world()
+    world.engine.step(propose("read_document", name="briefing-q3"))
+    world.clock.advance(100.0)
+    events = world.engine.step(propose("read_document", name="briefing-q3"))
+    assert [(e.step, e.spent) for e in events] == [(1, 1), (1, 1)]
+    assert world.engine.state.steps == 1
+
+
+def test_finish_after_lifetime_is_a_kill() -> None:
+    """Requirement 3.2: the lifetime check comes before finish."""
+    world = make_world()
+    world.clock.advance(61.0)
+    events = world.engine.step(propose("finish"))
+    assert types(events) == [KILLED, RUN_ENDED]
+    assert events[0].data["reason"] == LIFETIME_EXCEEDED
+    assert world.engine.state.status == STATUS_KILLED
+
+
+def test_lifetime_zero_with_zero_elapsed_allowed() -> None:
+    world = make_world(permit=Permit(0.0, 30, 60, SIX_ACTIONS))
+    assert types(world.engine.step(propose("read_document", name="briefing-q3"))) == [TOOL_CALL]
+    world.clock.advance(0.001)
+    assert types(world.engine.step(propose("read_document", name="briefing-q3"))) == [
+        KILLED,
+        RUN_ENDED,
+    ]
+
+
+def test_finish_emits_finished_then_run_ended() -> None:
+    """Requirement 3.3."""
+    world = make_world()
+    events = world.engine.step(propose("finish"))
+    assert types(events) == [FINISHED, RUN_ENDED]
+    assert events[0].data == {}
+    assert events[1].data["status"] == STATUS_FINISHED
+    assert world.engine.state.status == STATUS_FINISHED
+
+
+def test_finish_changes_neither_steps_nor_spent() -> None:
+    world = make_world()
+    world.engine.step(propose("read_document", name="briefing-q3"))
+    events = world.engine.step(propose("finish"))
+    assert [(e.step, e.spent) for e in events] == [(1, 1), (1, 1)]
+    assert (world.engine.state.steps, world.engine.state.spent) == (1, 1)
+
+
+def test_steps_nth_allowed() -> None:
+    """Requirement 3.4: with max_steps N the Nth step is allowed."""
+    world = make_world(permit=Permit(60.0, 3, 60, SIX_ACTIONS))
+    for _ in range(3):
+        assert types(world.engine.step(propose("read_document", name="briefing-q3"))) == [TOOL_CALL]
+    assert world.engine.state.steps == 3
+    assert world.engine.state.status == STATUS_ALIVE
+
+
+def test_steps_n_plus_one_killed() -> None:
+    """Requirement 3.4: the N+1th step is killed and the snapshot step is not incremented."""
+    world = make_world(permit=Permit(60.0, 3, 60, SIX_ACTIONS))
+    for _ in range(3):
+        world.engine.step(propose("read_document", name="briefing-q3"))
+    events = world.engine.step(propose("read_document", name="briefing-q3"))
+    assert types(events) == [KILLED, RUN_ENDED]
+    killed = events[0]
+    assert killed.data["reason"] == STEPS_EXCEEDED
+    assert (killed.data["limit"], killed.data["observed"]) == (3, 4)
+    assert (killed.step, killed.spent) == (3, 3)
+    assert world.engine.state.steps == 3
+
+
+def test_max_steps_zero_kills_first_action() -> None:
+    world = make_world(permit=Permit(60.0, 0, 60, SIX_ACTIONS))
+    events = world.engine.step(propose("read_document", name="briefing-q3"))
+    assert types(events) == [KILLED, RUN_ENDED]
+    assert (events[0].data["limit"], events[0].data["observed"]) == (0, 1)
+    assert events[0].step == 0
+    other = make_world(permit=Permit(60.0, 0, 60, SIX_ACTIONS))
+    assert types(other.engine.step(propose("finish"))) == [FINISHED, RUN_ENDED]
+
+
+def test_not_in_permit_consumes_step_charges_nothing() -> None:
+    """Requirement 3.5."""
+    world = make_world(permit=Permit(60.0, 30, 60, frozenset({"go:vault"})))
+    events = world.engine.step(propose("read_document", name="briefing-q3"))
+    assert types(events) == [DENIED]
+    assert events[0].data["action"] == "read_document"
+    assert events[0].data["reason"] == NOT_IN_PERMIT
+    assert (events[0].place, events[0].step, events[0].spent) == ("library", 1, 0)
+    state = world.engine.state
+    assert (state.steps, state.spent, state.status) == (1, 0, STATUS_ALIVE)
+
+
+def test_not_in_place_for_other_places_tool() -> None:
+    """Requirement 3.6: read_records is in the permit but the library does not hold it."""
+    world = make_world()
+    events = world.engine.step(propose("read_records"))
+    assert types(events) == [DENIED]
+    assert events[0].data["reason"] == NOT_IN_PLACE
+    assert (events[0].step, events[0].spent) == (1, 0)
+    assert world.engine.state.status == STATUS_ALIVE
+
+
+def test_go_current_place_denied() -> None:
+    world = make_world()
+    events = world.engine.step(propose("go:library"))
+    assert types(events) == [DENIED]
+    assert events[0].data["reason"] == NOT_IN_PLACE
+    assert world.engine.state.spent == 0
+
+
+@pytest.mark.parametrize("action", ["go:nowhere", "go:"])
+def test_go_unknown_place_denied(action: str) -> None:
+    """Requirement 3.6: an unknown or empty destination is NOT_IN_PLACE when it is in the permit."""
+    wide = Permit(60.0, 30, 60, SIX_ACTIONS | {action})
+    world = make_world(permit=wide, library_ceiling=wide)
+    events = world.engine.step(propose(action))
+    assert types(events) == [DENIED]
+    assert events[0].data["reason"] == NOT_IN_PLACE
+    assert (world.engine.state.steps, world.engine.state.spent) == (1, 0)
+
+
+def test_go_empty_place_denied_when_not_in_permit() -> None:
+    """go: with an empty place is not in the home permit, so it is NOT_IN_PERMIT."""
+    world = make_world()
+    events = world.engine.step(propose("go:"))
+    assert events[0].data["reason"] == NOT_IN_PERMIT
+
+
+def test_padded_action_is_not_matched() -> None:
+    """Requirement 3.5: matching is exact, with no trimming."""
+    world = make_world()
+    events = world.engine.step(Proposal(" read_document ", {"name": "briefing-q3"}))
+    assert types(events) == [DENIED]
+    assert events[0].data["reason"] == NOT_IN_PERMIT
+
+
+def test_not_in_permit_wins_over_not_in_place() -> None:
+    """read_records is neither in the permit nor in the library: the permit check comes first."""
+    world = make_world(permit=Permit(60.0, 30, 60, frozenset({"go:vault"})))
+    events = world.engine.step(propose("read_records"))
+    assert events[0].data["reason"] == NOT_IN_PERMIT
+
+
+def test_allowance_exact_is_allowed() -> None:
+    """Requirement 3.7: spend reaching exactly the allowance is allowed."""
+    world = make_world(permit=Permit(60.0, 30, 5, SIX_ACTIONS))
+    events = world.engine.step(propose("search_archive", query="x"))
+    assert types(events) == [TOOL_CALL]
+    assert events[0].spent == 5
+    assert world.engine.state.status == STATUS_ALIVE
+
+
+def test_allowance_one_over_kills_without_executing() -> None:
+    """Requirement 3.7: the killed action does not run and spent does not change."""
+    world = make_world(permit=Permit(60.0, 30, 5, SIX_ACTIONS), start_place="vault")
+    assert types(world.engine.step(propose("read_records"))) == [TOOL_CALL]
+    events = world.engine.step(propose("read_records"))
+    assert types(events) == [KILLED, RUN_ENDED]
+    killed = events[0]
+    assert killed.data["reason"] == ALLOWANCE_EXCEEDED
+    assert killed.data["action"] == "read_records"
+    assert (killed.data["limit"], killed.data["observed"]) == (5, 6)
+    assert (killed.step, killed.spent) == (2, 3)
+    assert (world.engine.state.steps, world.engine.state.spent) == (2, 3)
+    # the killed call did not run, so the page counter is still at 1
+    assert world.places["vault"].execute("read_records", {}) == "records page 2"
+
+
+def test_go_charges_cost_and_emits_border_check_only() -> None:
+    """Requirement 3.8."""
+    world = make_world()
+    events = world.engine.step(propose("go:vault"))
+    assert types(events) == [BORDER_CHECK]
+    event = events[0]
+    assert (event.place, event.step, event.spent) == ("vault", 1, 1)
+    assert event.data["place"] == "vault"
+    assert event.data["via_action"] == "go:vault"
+    assert event.data["decision"] == ADMIT_IMPOSED
+    assert event.data["cost"] == 1
+    assert world.engine.state.place == "vault"
+
+
+def test_go_admit_imposed_replaces_permit() -> None:
+    world = make_world()
+    events = world.engine.step(propose("go:vault"))
+    narrowed = HOME.narrowed_by(VAULT_CEILING)
+    assert events[0].data["permit_after"] == permit_json(narrowed)
+    assert events[0].data["narrowed_fields"] == ["allowance", "allowed_actions"]
+    assert world.engine.state.permit == narrowed
+
+
+def test_go_refused_charges_cost_and_keeps_place_and_permit() -> None:
+    """Requirement 3.8: on REFUSE the agent stays, keeps its permit, and the cost is charged."""
+    places, _vault = build_places()
+    trusted = {AUTHORITY.name: AUTHORITY.public_key}
+    vault = places["vault"]
+    places["vault"] = Place("vault", vault.tools, VAULT_CEILING, trusted, frozenset({"nobody"}))
+    engine = Engine(places, make_identity(), HOME, "library", TickClock(0.0))
+    events = engine.step(propose("go:vault"))
+    assert types(events) == [BORDER_CHECK]
+    event = events[0]
+    assert event.data["decision"] == REFUSE
+    assert event.data["reason"] == CLASS_NOT_ALLOWED
+    assert event.data["permit_after"] == permit_json(HOME)
+    assert event.data["narrowed_fields"] == []
+    assert event.data["cost"] == 1
+    assert event.data["place"] == "vault"
+    assert (event.place, event.step, event.spent) == ("library", 1, 1)
+    state = engine.state
+    assert (state.place, state.permit, state.status) == ("library", HOME, STATUS_ALIVE)
+
+
+def test_return_crossing_uses_current_permit() -> None:
+    """Security invariant 6: going back admits with the CURRENT permit, never the home permit."""
+    world = make_world()
+    world.engine.step(propose("go:vault"))
+    imposed = world.engine.state.permit
+    events = world.engine.step(propose("go:library"))
+    assert types(events) == [BORDER_CHECK]
+    assert events[0].data["decision"] == ADMIT
+    assert events[0].data["permit_after"] == permit_json(imposed)
+    state = world.engine.state
+    assert state.place == "library"
+    assert state.permit == imposed
+    assert state.permit.allowance == 40
+    assert state.permit.allowed_actions <= HOME.allowed_actions
+
+
+def test_step_returns_only_new_events() -> None:
+    world = make_world()
+    first = world.engine.step(propose("read_document", name="briefing-q3"))
+    second = world.engine.step(propose("search_archive", query="q"))
+    assert len(first) == 1 and len(second) == 1
+    log = world.engine.events
+    assert log[2:] == [first[0], second[0]]
+    assert [event.seq for event in log] == [0, 1, 2, 3]
+
+
+def test_step_on_killed_raises() -> None:
+    world = make_world()
+    world.clock.advance(61.0)
+    world.engine.step(propose("read_document", name="briefing-q3"))
+    before = world.engine.events
+    with pytest.raises(AgentNotAlive):
+        world.engine.step(propose("read_document", name="briefing-q3"))
+    assert world.engine.events == before
+
+
+def test_step_on_finished_raises() -> None:
+    world = make_world()
+    world.engine.step(propose("finish"))
+    before = world.engine.events
+    with pytest.raises(AgentNotAlive):
+        world.engine.step(propose("finish"))
+    assert world.engine.events == before
+
+
+def test_golden_run_b_hand_driven() -> None:
+    """Golden Run B (CONTRACTS section 8): 20 events, killed at step 17 with spent 38."""
+    world = make_world()
+    engine = world.engine
+    engine.step(propose("read_document", name="briefing-q3"))
+    engine.step(propose("go:vault"))
+    engine.step(propose("export_records", destination="drop@example.invalid"))
+    engine.step(propose("export_records", destination="drop@example.invalid"))
+    for _ in range(13):
+        engine.step(propose("read_records"))
+    events = engine.events
+    assert len(events) == 20
+    assert [event.seq for event in events] == list(range(20))
+    assert types(events) == (
+        [RUN_STARTED, BORDER_CHECK, TOOL_CALL, BORDER_CHECK, DENIED, DENIED]
+        + [TOOL_CALL] * 12
+        + [KILLED, RUN_ENDED]
+    )
+    expected = [
+        ("library", 0, 0),
+        ("library", 0, 0),
+        ("library", 1, 1),
+        ("vault", 2, 2),
+        ("vault", 3, 2),
+        ("vault", 4, 2),
+    ]
+    expected += [("vault", 4 + page, 2 + 3 * page) for page in range(1, 13)]
+    expected += [("vault", 17, 38), ("vault", 17, 38)]
+    assert [(e.place, e.step, e.spent) for e in events] == expected
+    assert events[1].data["decision"] == ADMIT
+    read = events[2].data
+    assert (read["action"], read["cost"], read["result"]) == ("read_document", 1, BRIEFING_Q3_TEXT)
+    crossing = events[3].data
+    assert crossing["decision"] == ADMIT_IMPOSED
+    assert crossing["narrowed_fields"] == ["allowance", "allowed_actions"]
+    assert crossing["permit_after"] == permit_json(VAULT_CEILING)
+    for denied in events[4:6]:
+        assert denied.data["action"] == "export_records"
+        assert denied.data["reason"] == NOT_IN_PERMIT
+    for page, call in enumerate(events[6:18], start=1):
+        assert call.data["action"] == "read_records"
+        assert call.data["result"] == f"records page {page}"
+    killed = events[18].data
+    assert killed["reason"] == ALLOWANCE_EXCEEDED
+    assert (killed["limit"], killed["observed"]) == (40, 41)
+    assert events[19].data["status"] == STATUS_KILLED
+    assert world.vault.outbox() == ()
+    assert reduce_events(events) == {
+        "place": "vault",
+        "step": 17,
+        "spent": 38,
+        "permit": permit_json(VAULT_CEILING),
+        "status": STATUS_KILLED,
+    }
