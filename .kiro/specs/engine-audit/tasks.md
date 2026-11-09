@@ -523,7 +523,7 @@ Group B implements the approved decisions (a) tool errors and (d) conditional cl
     - Acceptance check: nine properties green with the widened strategy, ruff clean, commit made.
     - _Requirements: 3.1, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.14_
 
-- [ ] 14. Group B final checkpoint
+- [x] 14. Group B final checkpoint
   - Blocked until the owner confirms task 10.
   - Run `uv --directory backend run pytest -q`
   - Report the final total as a difference from the count recorded before sub-task 1.1 (baseline 89), all passing.
