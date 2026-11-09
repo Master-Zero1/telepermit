@@ -326,7 +326,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: forged tests and the full replay file green, ruff clean, commit made, clean replay folder after re-recording.
     - _Requirements: 4.4, 4.8, 4.9_
 
-- [ ] 9. Group A final checkpoint
+- [x] 9. Group A final checkpoint
   - Run `uv --directory backend run pytest -q`
   - Report the final total as a difference from the count recorded before sub-task 1.1 (baseline expected 210), all passing.
   - Run `uv --directory backend run ruff check --config pyproject.toml . ../scripts`
