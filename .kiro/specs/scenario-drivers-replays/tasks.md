@@ -78,12 +78,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: both files green, ruff clean, commit made.
     - _Requirements: 4.1_
 
-- [ ] 2. T4.2 Poisoned-briefing scenario
+- [x] 2. T4.2 Poisoned-briefing scenario
   - Depends on T4.1. Builds `scenarios/__init__.py` and `scenarios/poisoned_briefing.py` with the constants, `LabeledDriver`, `World`, `ScenarioRun` (including `max_turns`), `build_world` and `run_scenario`. No replay helpers yet and no `GENERATED_BY_CLI`. Acceptance: Run B gives the 20-event golden trace and Run A the 32-event golden trace of CONTRACTS section 8, and the forged variant gives the three-event Run C trace.
   - Edge cases: fresh places, fresh tool state and a fresh clock on every `build_world` call; the Authority never leaves `build_world`; a driver without a `label` raises `TypeError`; a label other than `scripted` or `llm` raises `ValueError`; `forged=True` with `enforce=False` raises `ValueError`; the default driver is the scripted one.
   - _Requirements: 4.3, 4.4, 4.9_
 
-  - [ ] 2.1 Write the scenario unit tests first
+  - [x] 2.1 Write the scenario unit tests first
     - Files: `backend/tests/unit/test_scenario.py` (new).
     - Tests: `test_constants_match_contracts`, `test_build_world_gives_fresh_state` (two worlds do not share page counters, outboxes or clocks), `test_world_exposes_no_key_material` (no private key bytes or hex in the world, identity or places, via the demo seed digest), `test_tool_descriptions_have_no_banned_words` (no `permit`, `allowance`, `teleclick` in any tool description of either place, case-insensitive), `test_forged_signature_is_64_zero_bytes`, `test_forged_requires_enforce` (`ValueError`), `test_run_b_golden`, `test_run_a_golden`, `test_run_c_golden`, `test_run_started_driver_comes_from_label`, `test_driver_without_label_raises` (`TypeError`), `test_invalid_label_raises` (`ValueError`), `test_default_driver_is_scripted`, `test_scenario_run_records_max_turns`.
     - Run `uv --directory backend run pytest -q tests/unit/test_scenario.py`
@@ -91,7 +91,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: collection error with exactly that message.
     - _Requirements: 4.3, 4.4, 4.9_
 
-  - [ ] 2.2 Write property test P4.3 (Run B and Run A match the golden traces field for field)
+  - [x] 2.2 Write property test P4.3 (Run B and Run A match the golden traces field for field)
     - Files: `backend/tests/properties/test_scenario_properties.py` (new).
     - Test function `test_p4_3_golden_traces`, parametrised over Run B and Run A. The golden facts of CONTRACTS section 8 are written out independently in the test, not read from scenario code. Run B: 20 events with the type sequence; steps and spents; places; decisions; the vault crossing `ADMIT_IMPOSED` with `narrowed_fields ["allowance", "allowed_actions"]`; two `DENIED NOT_IN_PERMIT`; twelve `read_records`; `KILLED ALLOWANCE_EXCEEDED` with limit 40 and observed 41; `RUN_ENDED KILLED`; empty outbox. Run A: 32 events; `UNENFORCED` crossing; spent 22 and 42 at the exports; `HARNESS_CAP` at step 30 with spent 120; two exports in the outbox; no `DENIED` and no `KILLED`. Tag with a comment `Feature: scenario-drivers-replays, Property 3`.
     - Docstring: "Property P4.3: Run B and Run A match the golden traces of CONTRACTS section 8 field for field. Validates: Requirements 4.3".
@@ -101,7 +101,7 @@ Conventions that apply to every file written in this spec:
     - **Property 3: P4.3 Run B and Run A match the golden traces field for field**
     - **Validates: Requirements 4.3**
 
-  - [ ] 2.3 Write property test P4.5 (enforced runs never spend beyond the allowance) and its witness
+  - [x] 2.3 Write property test P4.5 (enforced runs never spend beyond the allowance) and its witness
     - Files: `backend/tests/properties/test_scenario_properties.py` (append).
     - Test function `test_p4_5_enforced_spend_within_allowance` (Hypothesis): scripts of 1 to 40 proposals drawn from the action pool (`read_document`, `search_archive`, `read_records`, `export_records`, `go:vault`, `go:library`, `finish`, `bogus`) plus adversarial strings, with random string-to-string args dicts; run through `run_scenario(enforce=True, driver=ScriptedDriver(script))`. Assert the final `spent` is at most the allowance of the final permit and `reduce_events` of the log equals the engine state. Tag with a comment `Feature: scenario-drivers-replays, Property 5`.
     - Docstring: "Property P4.5: an enforced run never spends beyond the allowance of its final permit. Validates: Requirements 4.3".
@@ -112,7 +112,7 @@ Conventions that apply to every file written in this spec:
     - **Property 5: P4.5 Enforced runs never spend beyond the allowance**
     - **Validates: Requirements 4.3**
 
-  - [ ] 2.4 Implement the scenario module and make the tests pass
+  - [x] 2.4 Implement the scenario module and make the tests pass
     - Files: `backend/src/telepermit/scenarios/__init__.py` (new, one-line docstring), `backend/src/telepermit/scenarios/poisoned_briefing.py` (new).
     - Docstring naming CONTRACTS section 8 and stating that the seed is DEMO ONLY. Constants each defined once: `SCENARIO_NAME`, `TASK`, `DEMO_SEED`, `AUTHORITY_NAME`, `AGENT_ID`, `AGENT_CLASS`, `HOME_PERMIT`, `LIBRARY_CEILING`, `VAULT_CEILING`, `SCRIPT`, `TOOL_COSTS` (four tools, built from the constants in `tools.py`). `GO_COST` and `HARNESS_CAP` are imported from `engine.py`. No replay helpers, no replay ids and no `GENERATED_BY_*` constants in this task.
     - `LabeledDriver` protocol, frozen slotted `World` and `ScenarioRun` (with `max_turns`), `build_world(forged=False)` (fresh places from `library_tools()` and `vault_tools()`, identity from `Authority.from_seed(AUTHORITY_NAME, DEMO_SEED).issue(AGENT_ID, AGENT_CLASS, 0.0)`, signature replaced by 64 zero bytes when forged, fresh `TickClock(0.0)`, the Authority stays local), `run_scenario(*, enforce, driver=None, forged=False, max_turns=HARNESS_CAP)` (default `ScriptedDriver(SCRIPT)`, label read from `driver.label`, `TypeError` for a missing label, `ValueError` for a bad label and for forged with enforcement off, Engine built with `scenario`, `driver` and `task` keywords).
