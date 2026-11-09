@@ -370,12 +370,12 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: step 1 showed exactly the three 3.15 tests red with DID NOT RAISE; after step 2 `test_engine.py` and the property file are green including all four criterion 3.15 tests; ruff clean; commit made.
     - _Requirements: 3.12, 3.10, 3.11, 3.15_
 
-- [ ] 8. T3.8 Architecture test
+- [x] 8. T3.8 Architecture test
   - Depends on T3.3 and T3.5. Builds `tests/test_architecture.py` with pure checker functions over a source string and a file name: `check_driver_imports`, `check_no_execute_calls`, `is_engine_module`, `collect_sources`. Security invariants 1 and 2. Acceptance: the real-source scans pass and a deliberately bad snippet is caught by the self-test.
   - Edge cases: method definitions named `execute` are fine (only calls are flagged); test files are not scanned; a file named `engine.py` in a sub-package is NOT exempt; imports inside functions or `if TYPE_CHECKING` blocks count.
   - _Requirements: 3.13_
 
-  - [ ] 8.1 Write the architecture test file first, with stub checkers
+  - [x] 8.1 Write the architecture test file first, with stub checkers
     - Files: `backend/tests/test_architecture.py` (new).
     - Define the four checker functions as STUBS: `check_driver_imports` and `check_no_execute_calls` return an empty list, `is_engine_module` returns `False`, `collect_sources` returns an empty list. Write the complete tests around them.
     - Self-test with bad snippets, each asserted to return at least one violation: `import telepermit.engine`, `import telepermit.engine as e`, `import telepermit.place.sub`, bare `import engine`, `from telepermit.engine import X`, `from telepermit import engine`, `from .engine import X`, `from ..tools import Y`, `from . import engine`, `from .. import place`, an import inside a function body, `place.execute("x", {})` and `Place.execute(p, "x", {})`. Test name `test_checker_self_test_catches_bad_snippets`.
@@ -388,7 +388,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: exactly the three failing tests above, each with `AssertionError`.
     - _Requirements: 3.13_
 
-  - [ ] 8.2 Implement the checkers with ast and make the tests pass
+  - [x] 8.2 Implement the checkers with ast and make the tests pass
     - Files: `backend/tests/test_architecture.py`.
     - `check_driver_imports`: walk every `ast.Import` and `ast.ImportFrom` at any depth. Flag `import telepermit.<banned>...` (any alias), bare `import <banned>`, `from telepermit.<banned> import X`, `from telepermit import <banned>`, relative `from .<banned> import X` at any level, and relative `from . import <banned>` at any level. Banned names: `engine`, `identity`, `place`, `tools`. Third-party names such as `anthropic.lib.tools` are not flagged.
     - `check_no_execute_calls`: flag every `ast.Call` whose `func` is an `ast.Attribute` with `attr == "execute"`. A `FunctionDef` named `execute` is not a call and passes.
