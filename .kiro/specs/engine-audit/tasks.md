@@ -403,7 +403,7 @@ Conventions that apply to every file written in this spec:
     - Acceptance check: self-tests and real-source scans green, the limitation stated, ruff clean, commit made.
     - _Requirements: 3.13_
 
-- [ ] 9. Group A final checkpoint
+- [x] 9. Group A final checkpoint
   - Run `uv --directory backend run pytest -q`
   - Report the final total as a difference from the count recorded before sub-task 1.1 (baseline 89), all passing.
   - Run `uv --directory backend run ruff check .`
