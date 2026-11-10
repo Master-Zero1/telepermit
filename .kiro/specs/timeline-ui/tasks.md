@@ -217,20 +217,20 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 9.3 Commit task 9
     - After green pastes: `git status --short`, stage `frontend/src/present.ts`, `frontend/src/components/Timeline.tsx`, `frontend/src/components/EventDetail.tsx`, `frontend/src/present.test.ts`, commit `feat(ui): timeline, event detail and presentation helpers (T5.6, task 9)`.
 
-- [ ] 10. Picker, pairing and compare view (T5.7)
-  - [ ] 10.1 Write `src/turns.test.ts` unit tests (T5.7)
+- [x] 10. Picker, pairing and compare view (T5.7)
+  - [x] 10.1 Write `src/turns.test.ts` unit tests (T5.7)
     - Real-file numbers: enforced last turn 17 (indices 18 and 19 both turn 17), unenforced last turn 30, forged last turn 0, `sharedMax` 30; enforced selects index `turn + 1` for turns 0 to 16 and 19 for turns 17 to 30; unenforced selects `turn` for 0 to 29 and 31 at 30; empty list gives `selectIndex` 0 and `lastTurn` 0; `go:vault` check is turn-starting in the unenforced replay.
     - Command: `npm --prefix frontend test -- src/turns.test.ts`
     - Expected red: the file fails to load because `./turns` does not exist; the first failing line is a vitest import-resolution error naming `./turns` and src/turns.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 7.1, 7.5, 7.6, 7.7, 7.8_
 
-  - [ ] 10.2 Write `src/pair.test.ts` (T5.7)
+  - [x] 10.2 Write `src/pair.test.ts` (T5.7)
     - Cases from design section 12 and the test table: same stem and scenario resolves; scenario mismatch unavailable; duplicate on one side unavailable; missing counterpart unavailable; `forged-identity-refused` never paired, also next to a complete pair; `meta.enforce` disagreeing with the suffix is no counterpart; a pair member that failed to load is unavailable; the real index resolves to `poisoned-briefing-enforced` and `poisoned-briefing-unenforced`; `types.ts` has no `pair` field.
     - Command: `npm --prefix frontend test -- src/pair.test.ts`
     - Expected red: the file fails to load because `./pair` does not exist; the first failing line is a vitest import-resolution error naming `./pair` and src/pair.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 7.2, 7.11, 7.12, 1.9_
 
-  - [ ] 10.3 Write property test for compare mapping
+  - [x] 10.3 Write property test for compare mapping
     - **Property 5: Compare mapping selects a valid event on both sides for any turn (P5.5)**
     - Same file as 10.1, `src/turns.test.ts`. Seeds 1 to 200: random integer turns at or above 0 (below, at and far above the last turn). `turnsOf` has the same length as events, starts at 0, is non-decreasing, does not increase at `RUN_STARTED`, spawn `BORDER_CHECK` or `RUN_ENDED`, and increases by exactly 1 elsewhere. `selectIndex` is in `[0, events.length - 1]` for both real replays, equals a linear-scan oracle, is non-decreasing in the turn, and is the last index when the turn is at least the last turn. For the pair resolved by `pair.ts` from the real index the enforced side selects 19 for every turn from 17 to 30 and the unenforced side selects 31 at 30.
     - Command: `npm --prefix frontend test -- src/turns.test.ts`
@@ -238,29 +238,29 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - **Validates: Requirements 7.1, 7.5, 7.6, 7.7, 7.8, 10.13**
     - _Requirements: 7.1, 7.5, 7.6, 7.7, 7.8, 10.13; Property 5 (P5.5)_
 
-  - [ ] 10.4 Implement `turns.ts` and `pair.ts` (T5.7)
+  - [x] 10.4 Implement `turns.ts` and `pair.ts` (T5.7)
     - `turnsOf`, `lastTurn`, `selectIndex`, `sharedMax` per design section 11; `idStem`, `resolveComparePair`, `PAIR_UNAVAILABLE_MESSAGE` per design section 12. No pair field added to any type.
     - Green check: owner runs `npm --prefix frontend test -- src/turns.test.ts` and `npm --prefix frontend test -- src/pair.test.ts`. Expected: all tests in both files pass, smoke green.
     - _Requirements: 7.1, 7.2, 7.5, 7.6, 7.7, 7.8, 7.11, 7.12_
 
-  - [ ] 10.5 Implement `components/ReplayPicker.tsx`, `components/CompareView.tsx`, `useMediaQuery.ts` and the run-view parts CompareView imports (T5.7)
+  - [x] 10.5 Implement `components/ReplayPicker.tsx`, `components/CompareView.tsx`, `useMediaQuery.ts` and the run-view parts CompareView imports (T5.7)
     - `ReplayPicker`: labelled `<select>`, option text `title — scripted agent` / `title — live LLM`, no page reload. `CompareView`: left column "WITHOUT ENFORCEMENT", right column "WITH ENFORCEMENT", one shared turn via `useReplay(sharedMax)`, row click scrubs to the row's turn, tab switcher with roving tabindex below 768px, driver label in each column header.
     - Owner confirmed: RunPanel, StatusLine and PlaybackBar are built here (moved from T5.8) because CompareView imports them.
     - Because `CompareView` imports them, also create here `components/RunPanel.tsx`, `components/StatusLine.tsx` and `components/PlaybackBar.tsx` (planned for T5.8 in the seed; moved earlier by the dependency). They contain no decisions: they call the pure functions of tasks 3 to 10.4.
     - Check: owner runs `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 6.15, 6.16, 6.17, 6.18, 7.2, 7.3, 7.4, 7.9, 7.10, 8.1, 8.4, 8.7_
 
-  - [ ] 10.6 Commit task 10
+  - [x] 10.6 Commit task 10
     - After green pastes: `git status --short`, stage `frontend/src/turns.ts`, `frontend/src/pair.ts`, `frontend/src/useMediaQuery.ts`, `frontend/src/components/ReplayPicker.tsx`, `frontend/src/components/CompareView.tsx`, `frontend/src/components/RunPanel.tsx`, `frontend/src/components/StatusLine.tsx`, `frontend/src/components/PlaybackBar.tsx`, `frontend/src/turns.test.ts`, `frontend/src/pair.test.ts`, commit `feat(ui): picker, pair resolution and compare view (T5.7, task 10)`.
 
-- [ ] 11. Honesty note, error state and App wiring (T5.8)
-  - [ ] 11.1 Implement `components/Note.tsx`, `components/ErrorState.tsx` and wire `App.tsx` (T5.8)
+- [x] 11. Honesty note, error state and App wiring (T5.8)
+  - [x] 11.1 Implement `components/Note.tsx`, `components/ErrorState.tsx` and wire `App.tsx` (T5.8)
     - `Note`: fixed footer with `HONESTY_NOTE` in italic, no dismiss control. `ErrorState`: `role="alert"` with file name and cause. `App.tsx`: loads the index and every replay once (cancelled flag), keeps one `Result` per file, loading text `Loading replays…`, full-page error for the index, per-file error only when that replay is selected, compare toggle with `aria-pressed`, `key` on `RunPanel` / `CompareView` so playback restarts paused at 0, `PAIR_UNAVAILABLE_MESSAGE` when unavailable, one visually hidden `aria-live="polite"` region, subtitle from `SUBTITLE`, title cursor class from `cursorBlinks`. The driver labels and `HONESTY_NOTE` text are already tested in `present.test.ts` (task 9.1); no separate new test file is needed.
     - Owner confirmed: task 11 is a build check only; driver labels (`scripted agent`, `live LLM`) and the exact `HONESTY_NOTE` text are asserted by `present.test.ts` in 9.1.
     - Check: owner runs `npm --prefix frontend run build`. Expected: green. Then owner runs `npm --prefix frontend test`. Expected: all tests pass (counts reported at the final checkpoint).
     - _Requirements: 1.1, 1.2, 1.3, 1.8, 1.9, 6.1, 6.17, 7.11, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 9.8, 10.7_
 
-  - [ ] 11.2 Commit task 11
+  - [x] 11.2 Commit task 11
     - After green pastes: `git status --short`, stage `frontend/src/components/Note.tsx`, `frontend/src/components/ErrorState.tsx`, `frontend/src/App.tsx`, commit `feat(ui): honesty note, error state and app wiring (T5.8, task 11)`.
 
 - [ ] 12. Remaining static guards
