@@ -16,7 +16,7 @@ Last updated: 2026-11-xx. Phase 0 and Specs 1 to 3 done, merged to main and push
 - [ ] Submitted (target Dec 3)
 
 ## Current spec tasks
-Spec 4 (scenario-drivers-replays), Group A: [x] 1 T4.1 scripted driver | [x] 2 T4.2 scenario | [x] 3 T4.3 observation safety | [x] 4 T4.4 llm driver | [x] 5 T4.5 CLI core | [x] 6 T4.6a replay format | [x] 7 T4.6b recorder + M1 replays | [x] 8 T4.7 forged replay (optional, not counted toward M1) | [x] 9 checkpoint (Group A done, 320 tests pass against baseline 210). Group B (gated): [ ] 10 owner CONTRACTS amendment | [ ] 11 CLI --out | [ ] 12 checkpoint
+Spec 4 (scenario-drivers-replays), Group A: [x] 1 T4.1 scripted driver | [x] 2 T4.2 scenario | [x] 3 T4.3 observation safety | [x] 4 T4.4 llm driver | [x] 5 T4.5 CLI core | [x] 6 T4.6a replay format | [x] 7 T4.6b recorder + M1 replays | [x] 8 T4.7 forged replay (optional, not counted toward M1) | [x] 9 checkpoint (Group A done, 320 tests pass against baseline 210). Group B (gated): [x] 10 owner CONTRACTS amendment (commit 44ebafd) | [x] 11 CLI --out | [ ] 12 checkpoint
 Spec 3 (engine-audit), Group A: [x] 1 T3.1 clock+events | [x] 2 T3.2 reduce+JSONL | [x] 3 T3.3 driver types | [x] 4 T3.4 construction+spawn | [x] 5 T3.5 step enforced | [x] 6 T3.6 step unenforced | [x] 7 T3.7 run + 3.15 | [x] 8 T3.8 architecture test | [x] 9 checkpoint. Group B (blocked): [x] 10 owner CONTRACTS amendment | [x] 11 (a) tool errors | [x] 12 (d) clock | [x] 13 widen props | [x] 14 checkpoint
 Spec 2 (tools-places-admission): [x] 1 T2.1 models | [x] 2 T2.2 catalog | [x] 3 T2.3 admit | [x] 4 final checkpoint
 Spec 1 (permit-identity): [x] 1 T1.1 Permit | [x] 2 T1.2 narrowed_by | [x] 3 T1.3 JSON | [x] 4 T1.4 Authority+Identity | [x] 5 T1.5 verify_identity | [x] 6 final checkpoint

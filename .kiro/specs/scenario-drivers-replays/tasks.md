@@ -347,19 +347,19 @@ Conventions that apply to every file written in this spec:
 
 Group B implements the CLI `--out` option of approved decision (b). It needs the CONTRACTS amendment first, because the value `"telepermit.cli"` for `generated_by` is not yet in CONTRACTS.
 
-- [ ] 10. Owner applies the CONTRACTS amendment
+- [x] 10. Owner applies the CONTRACTS amendment
   - Owner-only task. The agent does not edit docs/CONTRACTS.md and does not stage it.
   - Test command: none (owner action), then read-only confirmation.
   - _Requirements: 4.7, 4.8_
 
-  - [ ] 10.1 Owner edits docs/CONTRACTS.md and confirms in chat
+  - [x] 10.1 Owner edits docs/CONTRACTS.md and confirms in chat
     - Files: `docs/CONTRACTS.md` (owner edit).
     - Section 9, after the sentence that lists the replay ids, add: "`generated_by` is `"scripts/record_replays.py"` for files written by the recorder and `"telepermit.cli"` for a file written by the CLI `--out` option."
     - Section 10, in the CLI bullet, after "`--out` writes a replay JSON" add "(section 9, with `generated_by` `"telepermit.cli"`)".
     - Acceptance check: the owner confirms in chat that both edits are applied.
     - _Requirements: 4.7, 4.8_
 
-  - [ ] 10.2 Agent confirms the amendment with read-only searches
+  - [x] 10.2 Agent confirms the amendment with read-only searches
     - Files: none changed.
     - Run `git grep -n "telepermit.cli" -- docs/CONTRACTS.md`
     - Run `git grep -n "generated_by" -- docs/CONTRACTS.md`
@@ -367,13 +367,13 @@ Group B implements the CLI `--out` option of approved decision (b). It needs the
     - Acceptance check: both searches show the stated wordings in sections 9 and 10.
     - _Requirements: 4.7, 4.8_
 
-- [ ] 11. T4.5 continued: CLI --out
+- [x] 11. T4.5 continued: CLI --out
   - Blocked until the owner confirms task 10.
   - Adds the `--out` option to `cli.py` and `GENERATED_BY_CLI` to the scenario module. This is the ONLY task in which the value `"telepermit.cli"` is written as `generated_by`. Acceptance: `--out` writes a replay that equals the recorded replay apart from `generated_by`.
   - Edge cases: an unwritable path gives exit 1; the CLI never writes `index.json`; an llm run is labelled `llm` with the `-llm` id suffix.
   - _Requirements: 4.7, 4.9_
 
-  - [ ] 11.1 Write the --out tests first
+  - [x] 11.1 Write the --out tests first
     - Blocked until the owner confirms task 10.
     - Files: `backend/tests/unit/test_cli.py` (append; keep the guard and earlier tests).
     - Tests: `test_out_writes_replay`, `test_out_replay_generated_by_cli`, `test_out_unwritable_returns_1`, `test_cli_does_not_write_index`, `test_llm_out_replay_is_labelled_llm` (id with the `-llm` suffix, title ending `(live LLM)`, meta `driver` llm, fake client), `test_out_replay_matches_recorder_apart_from_generated_by` (scripted, enforce on and off: the CLI file equals the recorded replay with only `generated_by` different), `test_out_replay_has_schema_and_contiguous_seq`. Each test asserts the return code of `main(...)` FIRST (0 in every test except `test_out_unwritable_returns_1`, which expects 1), before any file check.
@@ -382,7 +382,7 @@ Group B implements the CLI `--out` option of approved decision (b). It needs the
     - Acceptance check: only the new tests fail, each with AssertionError.
     - _Requirements: 4.7, 4.9_
 
-  - [ ] 11.2 Implement --out and make the tests pass
+  - [x] 11.2 Implement --out and make the tests pass
     - Blocked until the owner confirms task 10.
     - Files: `backend/src/telepermit/cli.py`, `backend/src/telepermit/scenarios/poisoned_briefing.py`.
     - Scenario: add `GENERATED_BY_CLI: Final = "telepermit.cli"`. CLI: optional `--out PATH`; after the timeline, build `replay_document(replay_meta(run, GENERATED_BY_CLI), run.result.events)`, write it with `write_json`, print `replay written: <path>`; an `OSError` gives an `error:` line on stderr and exit 1. The CLI never writes `index.json`.
