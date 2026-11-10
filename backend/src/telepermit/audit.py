@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TypedDict
 
 from telepermit.permit import Permit
+
+SCHEMA_VERSION: Final = 1
 
 RUN_STARTED: Final = "RUN_STARTED"
 BORDER_CHECK: Final = "BORDER_CHECK"
@@ -217,3 +219,55 @@ def write_jsonl(path: str | Path, events: Sequence[Event]) -> None:
     """Write the events as JSONL. newline="\\n" keeps Windows from writing CRLF."""
     with Path(path).open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(to_jsonl(events))
+
+
+class ReplayMeta(TypedDict):
+    """The meta block of a replay file (CONTRACTS section 9)."""
+
+    id: str
+    title: str
+    scenario: str
+    driver: str
+    enforce: bool
+    harness_cap: int
+    task: str
+    home_permit: PermitJSON
+    ceilings: dict[str, PermitJSON]
+    tool_costs: dict[str, int]
+    document_text: str
+    generated_by: str
+
+
+class IndexEntry(TypedDict):
+    """One entry of index.json."""
+
+    id: str
+    title: str
+    file: str
+    driver: str
+    enforce: bool
+
+
+def replay_document(meta: ReplayMeta, events: Sequence[Event]) -> dict[str, object]:
+    """The replay file content: schema version, meta and every event as a plain dict."""
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "meta": dict(meta),
+        "events": [event.to_dict() for event in events],
+    }
+
+
+def index_document(entries: Sequence[IndexEntry]) -> dict[str, object]:
+    """The index.json content."""
+    return {"schema_version": SCHEMA_VERSION, "replays": [dict(entry) for entry in entries]}
+
+
+def dumps_json(document: Mapping[str, object]) -> str:
+    """Sorted keys, indent 2, pure ASCII, exactly one trailing LF."""
+    return json.dumps(document, sort_keys=True, indent=2) + "\n"
+
+
+def write_json(path: str | Path, document: Mapping[str, object]) -> None:
+    """Write dumps_json(document). newline="\\n" keeps Windows from writing CRLF."""
+    with Path(path).open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(dumps_json(document))

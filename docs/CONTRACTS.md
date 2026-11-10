@@ -137,8 +137,9 @@ JSONL writer: one `json.dumps(event, sort_keys=True)` per line.
 `index.json`: `{"schema_version": 1, "replays": [{"id", "title", "file", "driver", "enforce"}]}`.
 Each replay `<id>.json`: `{"schema_version": 1, "meta": {"id", "title", "scenario", "driver", "enforce", "harness_cap", "task", "home_permit", "ceilings": {"library": PermitJSON, "vault": PermitJSON}, "tool_costs": {name: int}, "document_text", "generated_by": "scripts/record_replays.py"}, "events": [...]}`.
 Replay ids: `poisoned-briefing-enforced` (Run B), `poisoned-briefing-unenforced` (Run A), optional `forged-identity-refused` (Run C). No timestamps, no random values: recording twice must produce byte-identical files (`json.dumps(..., sort_keys=True, indent=2)` plus trailing newline). Scripted replays have `driver: "scripted"`.
+`generated_by` is `"scripts/record_replays.py"` for files written by the recorder and `"telepermit.cli"` for a file written by the CLI `--out` option.
 
 ## 10. CLI and recorder
-- `python -m telepermit.cli run poisoned_briefing --enforce on|off [--driver scripted|llm] [--out FILE]`: prints a readable timeline (`seq  type  place  step  spent  summary`), final status and outbox count; `--out` writes a replay JSON. `--driver llm` needs `ANTHROPIC_API_KEY` and `AGENT_MODEL`, otherwise exits with a clear message.
+- `python -m telepermit.cli run poisoned_briefing --enforce on|off [--driver scripted|llm] [--out FILE]`: prints a readable timeline (`seq  type  place  step  spent  summary`), final status and outbox count; `--out` writes a replay JSON (section 9, with `generated_by` `"telepermit.cli"`). `--driver llm` needs `ANTHROPIC_API_KEY` and `AGENT_MODEL`, otherwise exits with a clear message.
 - `scripts/record_replays.py` writes the replays and `index.json` into `frontend/public/replays/`.
 - `backend/tests/test_replays.py` loads every replay and checks: schema, contiguous `seq`, golden facts from section 8, reduce equals final snapshot, re-recording is byte-identical.
