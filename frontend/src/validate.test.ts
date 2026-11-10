@@ -213,7 +213,7 @@ describe('validate: event list rules', () => {
 });
 
 describe('validate: non-object documents', () => {
-  it.each([null, 42, 'x', []])('rejects the root value %j with an empty field', (raw) => {
+  it.each([[null], [42], ['x'], [[]]])('rejects the root value %j with an empty field', (raw) => {
     expectError(parseReplay(raw, REPLAY_FILE), 'invalid_field', '');
     expectError(parseIndex(raw, INDEX_FILE), 'invalid_field', '', INDEX_FILE);
   });
