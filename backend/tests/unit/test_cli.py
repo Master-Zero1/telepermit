@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import socket
 from collections.abc import Iterator, Mapping
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +17,7 @@ from telepermit.audit import TOOL_CALL, Event
 from telepermit.drivers.llm import LLMUnavailableError
 from telepermit.scenarios.poisoned_briefing import DEMO_SEED, run_scenario
 
+REPLAY_DIR = Path(__file__).resolve().parents[3] / "frontend" / "public" / "replays"
 HEADER = f"{'seq':>3}  {'type':<12}  {'place':<8}  {'step':>4}  {'spent':>5}  summary"
 PREFIX_WIDTH = len(HEADER) - len("summary")
 KEY_HEX = hashlib.sha256(DEMO_SEED).digest().hex()
@@ -292,3 +295,101 @@ def test_network_guard_blocks_connections(network_calls: list[str]) -> None:
         assert network_calls == ["connect", "connect_ex", "getaddrinfo", "create_connection"]
     finally:
         network_calls.clear()
+
+
+def out_argv(path: Path, enforce: str = "on") -> list[str]:
+    return ["run", "poisoned_briefing", "--enforce", enforce, "--out", str(path)]
+
+
+def read_json(path: Path) -> dict[str, object]:
+    return json.loads(path.read_bytes())  # type: ignore[no-any-return]
+
+
+def test_out_writes_replay(tmp_path: Path) -> None:
+    """Requirement 4.7: --out writes a replay after the timeline and says so on the last line."""
+    path = tmp_path / "run.json"
+    code, out, err = run_cli(out_argv(path))
+    assert (code, err) == (0, "")
+    assert path.is_file()
+    assert out.splitlines()[-3:] == ["status: KILLED", "outbox: 0", f"replay written: {path}"]
+    assert set(read_json(path)) == {"schema_version", "meta", "events"}
+
+
+def test_out_replay_generated_by_cli(tmp_path: Path) -> None:
+    path = tmp_path / "run.json"
+    code, _, _ = run_cli(out_argv(path))
+    assert code == 0
+    meta = read_json(path)["meta"]
+    assert isinstance(meta, dict)
+    assert meta["generated_by"] == "telepermit.cli"
+    assert meta["id"] == "poisoned-briefing-enforced"
+
+
+def test_out_unwritable_returns_1(tmp_path: Path) -> None:
+    path = tmp_path / "missing-directory" / "run.json"
+    code, out, err = run_cli(out_argv(path))
+    assert code == 1
+    assert err.startswith("error:")
+    assert "status: KILLED" in out
+    assert not path.exists()
+
+
+def test_cli_does_not_write_index(tmp_path: Path) -> None:
+    path = tmp_path / "run.json"
+    code, _, _ = run_cli(out_argv(path))
+    assert code == 0
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["run.json"]
+
+
+def test_llm_out_replay_is_labelled_llm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Requirement 4.9: a live-model replay says llm in its id, title and driver."""
+    client = FakeClient(FINISH_REPLY)
+    monkeypatch.setattr(cli, "build_client", lambda api_key: client)
+    path = tmp_path / "run.json"
+    code, _, _ = run_cli([*llm_argv(), "--out", str(path)], llm_env())
+    assert code == 0
+    document = read_json(path)
+    meta = document["meta"]
+    assert isinstance(meta, dict)
+    assert meta["id"] == "poisoned-briefing-enforced-llm"
+    assert str(meta["title"]).endswith("(live LLM)")
+    assert meta["driver"] == "llm"
+    assert meta["generated_by"] == "telepermit.cli"
+    assert document["events"][0]["data"]["driver"] == "llm"  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    ("flag", "replay_id"),
+    [("on", "poisoned-briefing-enforced"), ("off", "poisoned-briefing-unenforced")],
+)
+def test_out_replay_matches_recorder_apart_from_generated_by(
+    tmp_path: Path, flag: str, replay_id: str
+) -> None:
+    path = tmp_path / "run.json"
+    code, _, _ = run_cli(out_argv(path, flag))
+    assert code == 0
+    written = read_json(path)
+    recorded = read_json(REPLAY_DIR / f"{replay_id}.json")
+    pairs = ((written, "telepermit.cli"), (recorded, "scripts/record_replays.py"))
+    for document, expected in pairs:
+        meta = document["meta"]
+        assert isinstance(meta, dict)
+        assert meta.pop("generated_by") == expected
+    assert written == recorded
+
+
+@pytest.mark.parametrize("flag", ["on", "off"])
+def test_out_replay_has_schema_and_contiguous_seq(tmp_path: Path, flag: str) -> None:
+    path = tmp_path / "run.json"
+    code, _, _ = run_cli(out_argv(path, flag))
+    assert code == 0
+    document = read_json(path)
+    assert document["schema_version"] == 1
+    meta = document["meta"]
+    assert isinstance(meta, dict)
+    assert len(meta) == 12
+    events = document["events"]
+    assert isinstance(events, list)
+    assert [event["seq"] for event in events] == list(range(len(events)))
+    assert events[0]["type"] == "RUN_STARTED"
+    assert events[-1]["type"] == "RUN_ENDED"

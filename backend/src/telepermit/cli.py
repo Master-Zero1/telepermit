@@ -1,9 +1,11 @@
 """The command line interface (CONTRACTS section 10).
 
 Usage: python -m telepermit.cli run poisoned_briefing --enforce on|off [--driver scripted|llm]
+       [--out PATH]
 
 The timeline is the operator's view of the audit log. It may show permits and limits, never keys.
-The --out option is not implemented yet.
+With --out PATH the run is also written as a replay file (generated_by "telepermit.cli", see
+CONTRACTS section 9). The CLI never writes index.json.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import contextlib
 import os
 import sys
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Final, TextIO
 
 from telepermit.audit import (
@@ -24,6 +27,8 @@ from telepermit.audit import (
     RUN_STARTED,
     TOOL_CALL,
     Event,
+    replay_document,
+    write_json,
 )
 from telepermit.drivers.llm import (
     ENV_API_KEY,
@@ -32,7 +37,13 @@ from telepermit.drivers.llm import (
     LLMUnavailableError,
     build_client,
 )
-from telepermit.scenarios.poisoned_briefing import SCENARIO_NAME, ScenarioRun, run_scenario
+from telepermit.scenarios.poisoned_briefing import (
+    GENERATED_BY_CLI,
+    SCENARIO_NAME,
+    ScenarioRun,
+    replay_meta,
+    run_scenario,
+)
 
 SUMMARY_WIDTH: Final = 72
 ELLIPSIS: Final = "..."
@@ -49,6 +60,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("scenario", choices=[SCENARIO_NAME])
     run.add_argument("--enforce", required=True, choices=["on", "off"])
     run.add_argument("--driver", choices=["scripted", "llm"], default="scripted")
+    run.add_argument("--out", type=Path, default=None, metavar="PATH")
     return parser
 
 
@@ -100,15 +112,31 @@ def format_timeline(events: Sequence[Event]) -> list[str]:
     return lines
 
 
-def _report(run: ScenarioRun, stdout: TextIO) -> int:
+def _write_replay(run: ScenarioRun, path: Path, stdout: TextIO, stderr: TextIO) -> int:
+    document = replay_document(replay_meta(run, GENERATED_BY_CLI), run.result.events)
+    try:
+        write_json(path, document)
+    except OSError as exc:
+        reason = exc.strerror or type(exc).__name__
+        print(f"error: cannot write replay to {path}: {reason}", file=stderr)
+        return EXIT_PROBLEM
+    print(f"replay written: {path}", file=stdout)
+    return EXIT_OK
+
+
+def _report(run: ScenarioRun, out_path: Path | None, stdout: TextIO, stderr: TextIO) -> int:
     for line in format_timeline(run.result.events):
         print(line, file=stdout)
     print(f"status: {run.result.status}", file=stdout)
     print(f"outbox: {len(run.outbox)}", file=stdout)
-    return EXIT_OK
+    if out_path is None:
+        return EXIT_OK
+    return _write_replay(run, out_path, stdout, stderr)
 
 
-def _run_llm(enforce: bool, env: Mapping[str, str], stdout: TextIO, stderr: TextIO) -> int:
+def _run_llm(
+    enforce: bool, env: Mapping[str, str], out_path: Path | None, stdout: TextIO, stderr: TextIO
+) -> int:
     missing = [name for name in (ENV_MODEL, ENV_API_KEY) if not env.get(name, "").strip()]
     if missing:
         names = ", ".join(missing)
@@ -126,7 +154,7 @@ def _run_llm(enforce: bool, env: Mapping[str, str], stdout: TextIO, stderr: Text
         # Only the type name is printed: SDK messages may contain the API key.
         print(f"error: run aborted: {type(exc).__name__} (details withheld; see docs)", file=stderr)
         return EXIT_PROBLEM
-    return _report(run, stdout)
+    return _report(run, out_path, stdout, stderr)
 
 
 def _exit_code(code: object) -> int:
@@ -153,8 +181,8 @@ def main(
         return _exit_code(exc.code)
     enforce = args.enforce == "on"
     if args.driver == "llm":
-        return _run_llm(enforce, environment, stdout, stderr)
-    return _report(run_scenario(enforce=enforce), stdout)
+        return _run_llm(enforce, environment, args.out, stdout, stderr)
+    return _report(run_scenario(enforce=enforce), args.out, stdout, stderr)
 
 
 if __name__ == "__main__":

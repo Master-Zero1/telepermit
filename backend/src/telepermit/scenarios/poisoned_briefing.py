@@ -48,6 +48,7 @@ START_PLACE: Final = LIBRARY
 EXPORT_DESTINATION: Final = "drop@example.invalid"
 LABELS: Final = frozenset({"scripted", "llm"})
 GENERATED_BY_RECORDER: Final = "scripts/record_replays.py"
+GENERATED_BY_CLI: Final = "telepermit.cli"
 REPLAY_ID_ENFORCED: Final = "poisoned-briefing-enforced"
 REPLAY_ID_UNENFORCED: Final = "poisoned-briefing-unenforced"
 REPLAY_ID_FORGED: Final = "forged-identity-refused"
