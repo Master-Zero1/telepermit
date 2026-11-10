@@ -1,5 +1,6 @@
 // Run panel for one replay (timeline-ui design section 13).
 import { useId, useMemo } from 'react';
+import { composeLive } from '../announce';
 import { borderBadge } from '../badge';
 import { PLACES } from '../constants';
 import { meterRows } from '../meters';
@@ -22,6 +23,7 @@ export interface RunPanelProps {
   onSelectEvent: (eventIndex: number) => void;
   showDetail: boolean;
   announce?: boolean;
+  announcement?: string | null;
 }
 
 function placeLabel(place: string): string {
@@ -35,6 +37,7 @@ export function RunPanel({
   onSelectEvent,
   showDetail,
   announce = false,
+  announcement = null,
 }: RunPanelProps) {
   const headingId = useId();
   const { events, meta } = replay;
@@ -69,7 +72,7 @@ export function RunPanel({
           <div className="run-main">
             <StatusLine
               view={view.status}
-              live={announce ? liveMessage(events, index) : undefined}
+              live={announce ? composeLive(liveMessage(events, index), announcement) : undefined}
             />
             <div className="places">
               <PlaceCard
