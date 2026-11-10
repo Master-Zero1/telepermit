@@ -119,14 +119,14 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 4.5 Commit task 4
     - After green pastes: `git status --short`, stage `frontend/src/validate.ts`, `frontend/src/loader.ts`, `frontend/src/validate.test.ts`, `frontend/src/loader.test.ts`, `frontend/src/replays.test.ts`, commit `feat(ui): replay validation and loader (T5.1, task 4)`.
 
-- [ ] 5. Playback reducer and hook (T5.2)
-  - [ ] 5.1 Write `src/playback.test.ts` unit tests (T5.2)
+- [x] 5. Playback reducer and hook (T5.2)
+  - [x] 5.1 Write `src/playback.test.ts` unit tests (T5.2)
     - One example per action: fresh state paused at 0 speed 1; play, pause; step forward past end and step back below 0 do nothing; setSpeed mid-play keeps `pos` and `playing`; scrub clamps (below 0, above max) and ignores non-finite; tick when paused is a no-op; play at the last event restarts at 0; empty replay (`max = 0`) keeps `pos` 0 and play is a no-op; reaching the last event stops playback.
     - Command: `npm --prefix frontend test -- src/playback.test.ts`
     - Expected red: the file fails to load because `./playback` does not exist; the first failing line is a vitest import-resolution error naming `./playback` and src/playback.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.10, 6.11, 6.12, 6.13, 6.14_
 
-  - [ ] 5.2 Write property test for playback range
+  - [x] 5.2 Write property test for playback range
     - **Property 2: Playback position never leaves its range (P5.2)**
     - Same file `src/playback.test.ts`. Seeds 1 to 200 from the Seeded_Generator; random `n >= 0` and random action sequences including scrub values negative, above `max` and non-finite. After every action: `0 <= pos <= max`, speed in 1, 2, 4, `playing` implies `pos < max`; empty replay stays at 0.
     - Command: `npm --prefix frontend test -- src/playback.test.ts`
@@ -134,12 +134,12 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - **Validates: Requirements 6.9, 6.10, 6.11, 6.13, 6.14, 10.11**
     - _Requirements: 6.9, 6.10, 6.11, 6.13, 6.14, 10.11; Property 2 (P5.2)_
 
-  - [ ] 5.3 Implement `playback.ts` and `useReplay.ts` (T5.2)
+  - [x] 5.3 Implement `playback.ts` and `useReplay.ts` (T5.2)
     - `playback.ts`: `createPlayback`, `playbackReducer` per the table in design section 4. `useReplay.ts`: `useReducer` plus one `setInterval` effect keyed on `[playing, speed]` with cleanup; no timer at mount (no autoplay). `useReplay.ts` is checked by build only.
     - Green check: owner runs `npm --prefix frontend test -- src/playback.test.ts`. Expected: all tests in the file pass, smoke green. Then `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.12, 6.14, 10.7_
 
-  - [ ] 5.4 Commit task 5
+  - [x] 5.4 Commit task 5
     - After green pastes: `git status --short`, stage `frontend/src/playback.ts`, `frontend/src/useReplay.ts`, `frontend/src/playback.test.ts`, commit `feat(ui): playback reducer and useReplay (T5.2, task 5)`.
 
 - [ ] 6. Place cards, token placement and border badge (T5.3)
