@@ -201,20 +201,20 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 8.3 Commit task 8
     - After green pastes: `git status --short`, stage `frontend/src/permitView.ts`, `frontend/src/components/PermitCard.tsx`, `frontend/src/permitView.test.ts`, commit `feat(ui): permit card with narrowed-field highlights (T5.5, task 8)`.
 
-- [ ] 9. Timeline, event detail and presentation helpers (T5.6)
-  - [ ] 9.1 Write `src/present.test.ts` (T5.6, also covers T5.8 label and note text)
+- [x] 9. Timeline, event detail and presentation helpers (T5.6)
+  - [x] 9.1 Write `src/present.test.ts` (T5.6, also covers T5.8 label and note text)
     - `eventTone`: red for KILLED and for RUN_ENDED KILLED; per UI_BRIEF mapping for the others. `rowTextTone(event, selected)`: for every event of the three real replays and synthetic events of all seven types, `rowTextTone(event, true) === 'amber'`; `rowTextTone(event, false)` is `'amber'` for KILLED and RUN_ENDED KILLED, `'dim'` for RUN_ENDED HARNESS_CAP, `eventTone(event)` otherwise. Seeded loop (seeds 1 to 200) over random (event, selected) pairs: whenever the row has a tint, the tone is `'amber'`.
     - `eventLabel`, `eventSummary` (KILLED summary contains `KILLED ALLOWANCE_EXCEEDED limit 40 observed 41`), `isKilledRow`, `runEndedStyle`, `statusView` at the KILLED event and at RUN_ENDED (text `KILLED ALLOWANCE_EXCEEDED. The engine destroyed the agent.`), `cursorBlinks` (only when every status is `ALIVE`), `positionLabel` (`event 19 of 20`, `turn 17 of 30`), `liveMessage`, the leading "▸" selected-marker text, `driverLabel`, and `HONESTY_NOTE`. Explicit assertions: `driverLabel('scripted') === 'scripted agent'`; `driverLabel('llm') === 'live LLM'`; `HONESTY_NOTE` equals exactly "Permits do not stop an injection that stays inside the permit boundary. Recorded runs are labelled scripted or live LLM."
     - Command: `npm --prefix frontend test -- src/present.test.ts`
     - Expected red: the file fails to load because `./present` does not exist; the first failing line is a vitest import-resolution error naming `./present` and src/present.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 5.1, 5.2, 5.4, 5.12, 6.16, 6.17, 8.2, 8.3, 8.5, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.8_
 
-  - [ ] 9.2 Implement `present.ts`, `components/Timeline.tsx`, `components/EventDetail.tsx` (T5.6)
+  - [x] 9.2 Implement `present.ts`, `components/Timeline.tsx`, `components/EventDetail.tsx` (T5.6)
     - `present.ts` per design section 10. `Timeline`: `<ol>` of `<button>` rows with roving tabindex, ArrowUp/ArrowDown/Home/End, `aria-current="true"` and "▸" on the selected row, `future` class for later rows (dimmed, still focusable), `killed` / `run-ended-killed` / `run-ended-cap` classes, text colour from `rowTextTone`, marker and border colour from `eventTone`, `scrollIntoView` with `behavior` `'auto'` under reduced motion. `EventDetail`: italic explain line above the JSON, reason / limit / observed line for KILLED, `<pre>` JSON.
     - Green check: owner runs `npm --prefix frontend test -- src/present.test.ts`. Expected: all tests in the file pass, smoke green. Then `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8_
 
-  - [ ] 9.3 Commit task 9
+  - [x] 9.3 Commit task 9
     - After green pastes: `git status --short`, stage `frontend/src/present.ts`, `frontend/src/components/Timeline.tsx`, `frontend/src/components/EventDetail.tsx`, `frontend/src/present.test.ts`, commit `feat(ui): timeline, event detail and presentation helpers (T5.6, task 9)`.
 
 - [ ] 10. Picker, pairing and compare view (T5.7)
