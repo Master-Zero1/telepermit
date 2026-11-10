@@ -49,7 +49,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - Owner's pasted run is green. Run `git status --short`, stage by name `frontend/src/test-types/node-fs.d.ts`, `frontend/src/test/seeded.ts`, `frontend/src/test/replays.ts`, `frontend/vite.config.ts`, `frontend/src/static.test.ts`, `frontend/src/styles.css`, then commit `test(ui): scaffolding and styles with background guards (task 1)`.
 
 - [ ] 2. Contrast module (colour rules continued)
-  - [ ] 2.1 Write `src/contrast.test.ts`
+  - [x] 2.1 Write `src/contrast.test.ts`
     - Known values: black on white 21, identical colours 1.
     - Measured pairs from design section 16: `--row-dim` #c98500 and the amber, green, blue, orange, purple, red text colours at least 4.5 on `--bg` #0a0a0a and `--bg-surface` #111111; `--amber-dim` #a06800 below 4.5 on both.
     - `compositeOver`: `--red-glow` over `--bg` gives rgb(75,16,16) and over `--bg-surface` rgb(80,22,22); `--amber-glow` over `--bg` gives rgb(59,43,8) and over `--bg-surface` rgb(65,49,14).
@@ -59,7 +59,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - Expected red: the file fails to load because `./contrast` does not exist; the first failing line is a vitest import-resolution error naming `./contrast` and src/contrast.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 5.10, 5.12, 9.1, 11.1_
 
-  - [ ] 2.2 Implement `src/contrast.ts`
+  - [x] 2.2 Implement `src/contrast.ts`
     - Export `relativeLuminance`, `contrastRatio` (WCAG 2.x, 0.03928 / 12.92 / 1.055 / 2.4) and `compositeOver` (per-channel linear mix, rounded to integers, `#rrggbbaa` over `#rrggbb`). No new constants beyond the colour literals the tests pass in.
     - Green check: owner runs `npm --prefix frontend test -- src/contrast.test.ts`. Expected: all tests in the file pass and smoke stays green. If a `styles.css` colour check fails, fix `styles.css` (not the test) and re-run.
     - _Requirements: 5.10, 5.12, 9.1_
