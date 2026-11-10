@@ -48,7 +48,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 1.4 Commit task 1
     - Owner's pasted run is green. Run `git status --short`, stage by name `frontend/src/test-types/node-fs.d.ts`, `frontend/src/test/seeded.ts`, `frontend/src/test/replays.ts`, `frontend/vite.config.ts`, `frontend/src/static.test.ts`, `frontend/src/styles.css`, then commit `test(ui): scaffolding and styles with background guards (task 1)`.
 
-- [ ] 2. Contrast module (colour rules continued)
+- [x] 2. Contrast module (colour rules continued)
   - [x] 2.1 Write `src/contrast.test.ts`
     - Known values: black on white 21, identical colours 1.
     - Measured pairs from design section 16: `--row-dim` #c98500 and the amber, green, blue, orange, purple, red text colours at least 4.5 on `--bg` #0a0a0a and `--bg-surface` #111111; `--amber-dim` #a06800 below 4.5 on both.
@@ -64,17 +64,17 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - Green check: owner runs `npm --prefix frontend test -- src/contrast.test.ts`. Expected: all tests in the file pass and smoke stays green. If a `styles.css` colour check fails, fix `styles.css` (not the test) and re-run.
     - _Requirements: 5.10, 5.12, 9.1_
 
-  - [ ] 2.3 Commit task 2
+  - [x] 2.3 Commit task 2
     - After the owner's green paste: `git status --short`, stage `frontend/src/contrast.ts`, `frontend/src/contrast.test.ts` (and `frontend/src/styles.css` if changed), commit `feat(ui): WCAG contrast helpers (task 2)`.
 
-- [ ] 3. Types, constants and reducer (T5.1)
-  - [ ] 3.1 Write `src/reduce.test.ts` unit tests (T5.1)
+- [x] 3. Types, constants and reducer (T5.1)
+  - [x] 3.1 Write `src/reduce.test.ts` unit tests (T5.1)
     - Edge cases: empty list throws; list without `RUN_STARTED` throws; `BORDER_CHECK` before the first `RUN_STARTED` is ignored; events without `RUN_ENDED` give status `ALIVE`; permit comes from the last `RUN_STARTED` or `BORDER_CHECK`; returned permit shares no data with the events; reduce of the full enforced replay equals the final snapshot (place, step 17, spent 38, allowance 40, status `KILLED`).
     - Command: `npm --prefix frontend test -- src/reduce.test.ts`
     - Expected red: the file fails to load because `./reduce` does not exist; the first failing line is a vitest import-resolution error naming `./reduce` and src/reduce.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-  - [ ] 3.2 Write property test for reducer prefix consistency
+  - [x] 3.2 Write property test for reducer prefix consistency
     - **Property 1: Reducer matches the last event of every prefix (P5.1)**
     - For every replay in the index and every prefix containing `RUN_STARTED`, `reduceEvents(prefix)` equals the last event's place, step, spent; the permit of the last `RUN_STARTED` / `BORDER_CHECK`; the status of the last `RUN_ENDED` or `ALIVE`. Expected values come from an independent backward scan in the test. Mutating the result leaves the events unchanged. Docstring: `Property P5.1: ... Validates: ...`.
     - Same file and same command as 3.1: `npm --prefix frontend test -- src/reduce.test.ts`
@@ -82,12 +82,12 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 10.9**
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 10.9; Property 1 (P5.1)_
 
-  - [ ] 3.3 Implement `constants.ts`, `types.ts`, `reduce.ts` (T5.1)
+  - [x] 3.3 Implement `constants.ts`, `types.ts`, `reduce.ts` (T5.1)
     - `constants.ts`: every constant of design section 2, defined once. `types.ts`: design section 1, no `any`. `reduce.ts`: `reduceEvents` mirroring the Python `reduce_events` (copies, errors on empty or no `RUN_STARTED`).
     - Green check: owner runs `npm --prefix frontend test -- src/reduce.test.ts`. Expected: all tests in the file pass, smoke green. Then owner runs `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 10.5_
 
-  - [ ] 3.4 Commit task 3
+  - [x] 3.4 Commit task 3
     - After green pastes: `git status --short`, stage `frontend/src/constants.ts`, `frontend/src/types.ts`, `frontend/src/reduce.ts`, `frontend/src/reduce.test.ts`, commit `feat(ui): types, constants and reduceEvents (T5.1, task 3)`.
 
 - [ ] 4. Validation, loader and replay-file properties (T5.1)
