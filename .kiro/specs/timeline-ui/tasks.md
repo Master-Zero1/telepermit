@@ -90,20 +90,20 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 3.4 Commit task 3
     - After green pastes: `git status --short`, stage `frontend/src/constants.ts`, `frontend/src/types.ts`, `frontend/src/reduce.ts`, `frontend/src/reduce.test.ts`, commit `feat(ui): types, constants and reduceEvents (T5.1, task 3)`.
 
-- [ ] 4. Validation, loader and replay-file properties (T5.1)
-  - [ ] 4.1 Write `src/validate.test.ts` (T5.1)
+- [x] 4. Validation, loader and replay-file properties (T5.1)
+  - [x] 4.1 Write `src/validate.test.ts` (T5.1)
     - Cases: valid real index and replays parse; `schema_version` other than 1 gives kind `schema_version`; missing `meta.home_permit.allowance` gives `missing_field` with that path; wrong type gives `invalid_field`; bad `driver`; unknown event type; unsafe `file` names (slash, `..`, scheme) rejected; first event not `RUN_STARTED` rejected; empty `events` array accepted.
     - Command: `npm --prefix frontend test -- src/validate.test.ts`
     - Expected red: the file fails to load because `./validate` does not exist; the first failing line is a vitest import-resolution error naming `./validate` and src/validate.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 1.6, 1.7, 6.14, 10.1_
 
-  - [ ] 4.2 Write `src/loader.test.ts` (T5.1)
+  - [x] 4.2 Write `src/loader.test.ts` (T5.1)
     - Injected stub fetch. Cases: URLs requested are `./replays/index.json` and `./replays/<file>` for every index entry; network rejection; HTTP 404 (message names file and status); invalid JSON; `schema_version` 2; missing field; unsafe file name never fetched; one failing replay leaves the other results `ok`; empty events array loads.
     - Command: `npm --prefix frontend test -- src/loader.test.ts`
     - Expected red: the file fails to load because `./loader` does not exist; the first failing line is a vitest import-resolution error naming `./loader` and src/loader.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.9, 10.1_
 
-  - [ ] 4.3 Write property test for replay files
+  - [x] 4.3 Write property test for replay files
     - **Property 4: Every replay file parses and tells the recorded story (P5.4)**
     - File `src/replays.test.ts`. For every entry of the real index: `parseReplay` succeeds; `parseIndex` succeeds; enforced replay's last non-terminal event is `KILLED` with `ALLOWANCE_EXCEEDED`, limit 40, observed 41; unenforced replay has no `KILLED`; the forged-identity replay still parses; deleting any one required key from a deep copy gives `missing_field` naming that key's path.
     - Command: `npm --prefix frontend test -- src/replays.test.ts`
@@ -111,12 +111,12 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - **Validates: Requirements 1.7, 10.10**
     - _Requirements: 1.7, 10.10; Property 4 (P5.4)_
 
-  - [ ] 4.4 Implement `validate.ts` and `loader.ts` (T5.1)
+  - [x] 4.4 Implement `validate.ts` and `loader.ts` (T5.1)
     - `validate.ts`: `parseIndex`, `parseReplay` with the check order of design section 5. `loader.ts`: `loadIndex`, `loadReplay` with an injected `FetchLike`, error kinds `network`, `http`, `invalid_json`, then validation.
     - Green check: owner runs each of `npm --prefix frontend test -- src/validate.test.ts`, `npm --prefix frontend test -- src/loader.test.ts`, `npm --prefix frontend test -- src/replays.test.ts`. Expected: all tests in each file pass. Then `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.9, 10.1, 10.10_
 
-  - [ ] 4.5 Commit task 4
+  - [x] 4.5 Commit task 4
     - After green pastes: `git status --short`, stage `frontend/src/validate.ts`, `frontend/src/loader.ts`, `frontend/src/validate.test.ts`, `frontend/src/loader.test.ts`, `frontend/src/replays.test.ts`, commit `feat(ui): replay validation and loader (T5.1, task 4)`.
 
 - [ ] 5. Playback reducer and hook (T5.2)
