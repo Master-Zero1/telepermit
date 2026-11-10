@@ -23,8 +23,9 @@ All colours defined as CSS custom properties on `:root`.
 --bg-inset:        #0d0d0d       /* inset areas (event detail, code blocks) */
 
 --amber:           #ffb000       /* primary text — phosphor amber */
---amber-dim:       #a06800       /* secondary text, borders, muted labels */
---amber-glow:      #ffb00033     /* subtle glow behind active elements */
+--amber-dim:       #a06800       /* borders and muted labels, not body text */
+--row-dim:         #c98500       /* dimmed row text, strikethrough (4.5:1 or better on --bg and --bg-surface) */
+--amber-glow:      #ffb00033     /* subtle glow behind the selected event row */
 
 --green:           #00ff88       /* ADMIT, OK, FINISHED — safe states */
 --green-dim:       #00aa5a       /* muted green for secondary indicators */
@@ -42,6 +43,8 @@ All colours defined as CSS custom properties on `:root`.
 
 ### Semantic mapping
 
+Note (Spec 5): the Foreground column applies on the plain backgrounds `--bg` and `--bg-surface` only. On a tinted row (the selected row on `--amber-glow`, the KILLED rows on `--red-glow`) the text is `--amber` and the event colour appears only in the marker and the left border.
+
 | State / Event | Foreground | Background accent |
 |---|---|---|
 | `RUN_STARTED` | `--amber` | none |
@@ -50,10 +53,10 @@ All colours defined as CSS custom properties on `:root`.
 | `BORDER_CHECK REFUSE` | `--red` | none |
 | `TOOL_CALL` | `--blue` | none |
 | `DENIED` | `--red` | none |
-| `KILLED` | `--red` | `--red-glow` |
+| `KILLED` | `--amber` text; `--red` marker and left border | `--red-glow` |
 | `FINISHED` | `--green` | none |
-| `RUN_ENDED KILLED` | `--red` | `--red-glow` |
-| `RUN_ENDED HARNESS_CAP` | `--amber-dim` | none |
+| `RUN_ENDED KILLED` | `--amber` text; `--red` marker and left border | `--red-glow` |
+| `RUN_ENDED HARNESS_CAP` | `--row-dim` | none |
 | Over-limit meter | `--red` text + `--red` bar | — |
 | Under-limit meter | `--green` bar | — |
 | Narrowed permit field | `--orange` highlight | — |
@@ -129,6 +132,7 @@ On narrow viewports (< 768px): stack vertically (left panel above right panel; c
 - Agent token: a small filled square (`■`) in `--amber` inside the current place; empty in the other.
 - Border line between places: dashed 1px `--amber-dim`.
 - Badge below the border line: `ADMITTED` (green), `ADMITTED — IMPOSED` (orange), `REFUSED` (red). The badge text includes the decision, never colour alone.
+- Note (Spec 5): the UI implements the imposed badge text as `ADMITTED UNDER IMPOSED PERMIT` (seed wording). `ADMITTED — IMPOSED` above is a visual variant of the same badge.
 
 ### Meters
 - Each meter: label on the left, bar in the middle, `spent / limit` on the right.
@@ -138,14 +142,15 @@ On narrow viewports (< 768px): stack vertically (left panel above right panel; c
 - Use `font-variant-numeric: tabular-nums` for value alignment.
 
 ### Permit card
+- Note (Spec 5): `--row-dim` (#c98500) is used for dimmed text (future timeline rows, the HARNESS_CAP row) and for struck-through removed actions, because `--amber-dim` (#a06800) is below 4.5:1 contrast on `--bg` and `--bg-surface`. `--amber-dim` is for borders and decorative lines only, not for text. Where this brief says `--amber-dim` for text or strikethrough, `--row-dim` applies.
 - Grid of field names and values.
 - Narrowed fields: value text in `--orange`, with a small `▼` prefix to indicate it was reduced. Unchanged fields: `--amber`.
-- `allowed_actions` shown as a comma-separated list; removed actions shown as strikethrough in `--amber-dim` (comparing against the home permit from replay meta).
+- `allowed_actions` shown as a comma-separated list; removed actions shown as strikethrough in `--row-dim` (comparing against the home permit from replay meta).
 
 ### Timeline
 - Vertical list of event rows, each a single line: `seq` number, coloured dot, event type label, brief summary.
-- Selected event: `--amber-glow` background, slight left-border accent in the event's colour.
-- KILLED event: larger text, `--red` background tint (`--red-glow`), reason text inline.
+- Selected event: `--amber-glow` background with `--amber` text (7.47:1 on `--bg`, 6.86:1 on `--bg-surface`, measured, tint composited over the background). The event's colour appears only in the marker and the left border, never in the text.
+- KILLED event: larger text in `--amber` on a `--red-glow` tint (8.30:1 on `--bg`, 7.81:1 on `--bg-surface`, measured), with `--red` for the marker and the left border only, reason text inline.
 - Scroll into view on playback advance.
 
 ### Event detail panel
@@ -161,7 +166,7 @@ On narrow viewports (< 768px): stack vertically (left panel above right panel; c
 - Current position: `event N of M`.
 
 ### Honesty note
-- Fixed at the very bottom, full width, `--bg-surface` background, `--amber-dim` text, italic.
+- Fixed at the very bottom, full width, `--bg-surface` background, `--row-dim` text, italic.
 - Text: "Permits do not stop an injection that stays inside the permit boundary. Recorded runs are labelled scripted or live LLM."
 - Always visible, never dismissable.
 
@@ -195,7 +200,7 @@ On narrow viewports (< 768px): stack vertically (left panel above right panel; c
 - No blink animation.
 - All state changes are immediate — information is never conveyed only through animation.
 
-**No animation conveys information that text does not also convey.** The KILLED state is shown by red text, the word "KILLED", and the reason — not by a flash alone.
+**No animation conveys information that text does not also convey.** The KILLED state is shown by a red marker and left border, amber text on the tint, the word "KILLED", and the reason — not by a flash alone.
 
 ---
 
@@ -221,6 +226,7 @@ On narrow viewports (< 768px): stack vertically (left panel above right panel; c
 - No autoplaying sound or music.
 - No modal dialogs or popups.
 - No tooltip-only information (always show in text too).
+- No coloured text (`--red`, `--blue`, `--purple`, `--orange`, `--row-dim`) on a tinted background (`--amber-glow` selected row, `--red-glow` KILLED row). Text on a tint is `--amber`; the event colour goes in the marker and the left border only. Coloured text is allowed only on the plain backgrounds `--bg` and `--bg-surface`.
 
 ---
 
@@ -274,8 +280,8 @@ Pseudocode for the CSS structure:
   .permit-card .narrowed { color: var(--orange); }
   .timeline { ... }
   .timeline-event { ... }
-  .timeline-event.killed { background: var(--red-glow); ... }
-  .timeline-event.selected { background: var(--amber-glow); ... }
+  .timeline-event.killed { background: var(--red-glow); color: var(--amber); ... }
+  .timeline-event.selected { background: var(--amber-glow); color: var(--amber); ... }
   .event-detail { ... }
   .event-detail pre { ... }
   .playback-bar button { ... }
