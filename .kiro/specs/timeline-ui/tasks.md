@@ -263,7 +263,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 11.2 Commit task 11
     - After green pastes: `git status --short`, stage `frontend/src/components/Note.tsx`, `frontend/src/components/ErrorState.tsx`, `frontend/src/App.tsx`, commit `feat(ui): honesty note, error state and app wiring (T5.8, task 11)`.
 
-- [ ] 12. Remaining static guards
+- [x] 12. Remaining static guards
   - [x] 12.1 Green check: extend `src/static.test.ts` with the source-scan guards (no red step)
     - Scan `src/` and `index.html`: no `http://` or `https://` and no `@import url`; `fetch(` appears only in `App.tsx` and `loader.ts`; no `: any` or `as any`; no non-null assertion; no `dangerouslySetInnerHTML`; no `alert(` or `dialog`; no app module outside `test/` and `test-types/` references `test-types`, `node-fs.d.ts` or the `node:` prefix; `vite.config.ts` has `base: './'`; `package.json` dependencies unchanged from the baseline list.
     - Command: `npm --prefix frontend test -- src/static.test.ts`
@@ -271,7 +271,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - Green check: same command; all tests in the file pass and smoke stays green.
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 11.7, 11.9_
 
-  - [ ] 12.2 Commit task 12
+  - [x] 12.2 Commit task 12
     - After the owner's green paste: `git status --short`, stage `frontend/src/static.test.ts`, commit `test(ui): static source guards (task 12)`.
 
 - [ ] 13. Final checkpoint
