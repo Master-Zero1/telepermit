@@ -1,6 +1,6 @@
 # Progress tracker (the agent updates this file; the human can read it)
 
-Last updated: 2026-11-xx. Phase 0 and Specs 1 to 3 done, merged to main and pushed with their tags. Next: Spec 4.
+Last updated: 2026-11-xx. Phase 0 and Specs 1 to 4 done and merged to main; Specs 1 to 3 pushed with their tags, Spec 4 merged and tagged spec-04-done but not pushed. Next: Spec 5.
 
 ## Phases
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
@@ -8,7 +8,7 @@ Last updated: 2026-11-xx. Phase 0 and Specs 1 to 3 done, merged to main and push
 - [x] Spec 1: permit + identity            folder: .kiro/specs/permit-identity  branch: spec/01-permit-identity (all 6 tasks done, 49 tests green, ruff clean; merged to main with --no-ff, tagged spec-01-done, pushed with its tag)
 - [x] Spec 2: tools + places + admission   folder: .kiro/specs/tools-places-admission  branch: spec/02-tools-places-admission (all 4 tasks done, 89 tests green (49 baseline + 40), ruff clean; merged to main with --no-ff, tagged spec-02-done, pushed with its tag)
 - [x] Spec 3: engine + metering + kill + audit  folder: .kiro/specs/engine-audit  branch: spec/03-engine-audit (all 14 tasks done, Groups A and B, 210 tests green = 89 baseline + 121, ruff clean; merged to main with --no-ff, tagged spec-03-done, pushed with its tag)
-- [ ] Spec 4: scenario + drivers + replays + CLI  folder: .kiro/specs/scenario-drivers-replays  branch: spec/04-scenario-drivers-replays  (MILESTONE M1) (all tasks 1-12 done, 329 tests pass against baseline 210; M1 recorded over the enforced and unenforced replays, the forged replay is optional and also recorded; ready for MERGE, then tag spec-04-done; the owner tags m1-core; the LLM mapping has not been run against the live service)
+- [x] Spec 4: scenario + drivers + replays + CLI  folder: .kiro/specs/scenario-drivers-replays  branch: spec/04-scenario-drivers-replays  (MILESTONE M1) (merged to main as 17288b8, tag spec-04-done, 329 tests pass on main against baseline 210; M1 recorded over the enforced and unenforced replays, the forged replay is optional and also recorded; not pushed yet; the owner tags m1-core; the LLM mapping has not been run against the live service)
 - [ ] Spec 5: timeline UI                  folder: ____  branch: ____
 - [ ] Phase 6: CI, deploy, README, architecture, threat model
 - [ ] Phase 7: submission assets (video, write-up, blog, social, Devpost form)
@@ -16,7 +16,7 @@ Last updated: 2026-11-xx. Phase 0 and Specs 1 to 3 done, merged to main and push
 - [ ] Submitted (target Dec 3)
 
 ## Current spec tasks
-Spec 4 (scenario-drivers-replays): all 12 tasks done (Group A tasks 1-9, Group B tasks 10-12 after the owner's CONTRACTS amendment, commit 44ebafd). Next: MERGE.
+Spec 4 (scenario-drivers-replays): all 12 tasks done and merged (Group A tasks 1-9, Group B tasks 10-12 after the owner's CONTRACTS amendment, commit 44ebafd). Next: PUSH, then Spec 5.
 Spec 3 (engine-audit), Group A: [x] 1 T3.1 clock+events | [x] 2 T3.2 reduce+JSONL | [x] 3 T3.3 driver types | [x] 4 T3.4 construction+spawn | [x] 5 T3.5 step enforced | [x] 6 T3.6 step unenforced | [x] 7 T3.7 run + 3.15 | [x] 8 T3.8 architecture test | [x] 9 checkpoint. Group B (blocked): [x] 10 owner CONTRACTS amendment | [x] 11 (a) tool errors | [x] 12 (d) clock | [x] 13 widen props | [x] 14 checkpoint
 Spec 2 (tools-places-admission): [x] 1 T2.1 models | [x] 2 T2.2 catalog | [x] 3 T2.3 admit | [x] 4 final checkpoint
 Spec 1 (permit-identity): [x] 1 T1.1 Permit | [x] 2 T1.2 narrowed_by | [x] 3 T1.3 JSON | [x] 4 T1.4 Authority+Identity | [x] 5 T1.5 verify_identity | [x] 6 final checkpoint
