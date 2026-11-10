@@ -186,19 +186,19 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 7.4 Commit task 7
     - After green pastes: `git status --short`, stage `frontend/src/meters.ts`, `frontend/src/components/Meters.tsx`, `frontend/src/meters.test.ts`, commit `feat(ui): meters with clamped bars and over-limit flag (T5.4, task 7)`.
 
-- [ ] 8. Permit card (T5.5)
-  - [ ] 8.1 Write `src/permitView.test.ts` (T5.5)
+- [x] 8. Permit card (T5.5)
+  - [x] 8.1 Write `src/permitView.test.ts` (T5.5)
     - Known `narrowed_fields`: enforced index 3 and 19 give allowance 40 marked narrowed, `allowed_actions` narrowed, four home actions removed (`removed: true`); enforced index 2 (before the vault border) has no narrowed field and no removed action; `ADMIT` check gives no highlights; unenforced replay never narrowed; all four fields narrowed when the list names all four; state action not in home is appended and not removed.
     - Command: `npm --prefix frontend test -- src/permitView.test.ts`
     - Expected red: the file fails to load because `./permitView` does not exist; the first failing line is a vitest import-resolution error naming `./permitView` and src/permitView.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
 
-  - [ ] 8.2 Implement `permitView.ts` and `components/PermitCard.tsx` (T5.5)
+  - [x] 8.2 Implement `permitView.ts` and `components/PermitCard.tsx` (T5.5)
     - `permitView`, `latestNarrowed`. `PermitCard`: `<dl>` of the four fields; narrowed field has the "▼" prefix, the visible word "narrowed" and the orange highlight; removed actions in `<s class="removed">` with visually hidden text "(removed)".
     - Green check: owner runs `npm --prefix frontend test -- src/permitView.test.ts`. Expected: all tests in the file pass, smoke green. Then `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
 
-  - [ ] 8.3 Commit task 8
+  - [x] 8.3 Commit task 8
     - After green pastes: `git status --short`, stage `frontend/src/permitView.ts`, `frontend/src/components/PermitCard.tsx`, `frontend/src/permitView.test.ts`, commit `feat(ui): permit card with narrowed-field highlights (T5.5, task 8)`.
 
 - [ ] 9. Timeline, event detail and presentation helpers (T5.6)
