@@ -264,7 +264,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - After green pastes: `git status --short`, stage `frontend/src/components/Note.tsx`, `frontend/src/components/ErrorState.tsx`, `frontend/src/App.tsx`, commit `feat(ui): honesty note, error state and app wiring (T5.8, task 11)`.
 
 - [ ] 12. Remaining static guards
-  - [ ] 12.1 Green check: extend `src/static.test.ts` with the source-scan guards (no red step)
+  - [x] 12.1 Green check: extend `src/static.test.ts` with the source-scan guards (no red step)
     - Scan `src/` and `index.html`: no `http://` or `https://` and no `@import url`; `fetch(` appears only in `App.tsx` and `loader.ts`; no `: any` or `as any`; no non-null assertion; no `dangerouslySetInnerHTML`; no `alert(` or `dialog`; no app module outside `test/` and `test-types/` references `test-types`, `node-fs.d.ts` or the `node:` prefix; `vite.config.ts` has `base: './'`; `package.json` dependencies unchanged from the baseline list.
     - Command: `npm --prefix frontend test -- src/static.test.ts`
     - No red step. This is a green-check task: the code from tasks 1 to 11 is expected to already comply, so the owner's first run is expected green. If any guard fails, that is a real violation: stop, report it, and fix app code (never weaken the guard) after the owner agrees.
