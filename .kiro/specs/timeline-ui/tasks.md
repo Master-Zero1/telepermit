@@ -163,14 +163,14 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 6.4 Commit task 6
     - After green pastes: `git status --short`, stage `frontend/src/placeMap.ts`, `frontend/src/badge.ts`, `frontend/src/components/PlaceCard.tsx`, `frontend/src/placeMap.test.ts`, `frontend/src/badge.test.ts`, commit `feat(ui): place cards, token placement and border badge (T5.3, task 6)`.
 
-- [ ] 7. Meters (T5.4)
-  - [ ] 7.1 Write `src/meters.test.ts` unit tests (T5.4)
+- [x] 7. Meters (T5.4)
+  - [x] 7.1 Write `src/meters.test.ts` unit tests (T5.4)
     - `barPercent`: zero limit with observed 0 gives 0, with observed above 0 gives 100; equal to the limit gives 100 and is not over; one over is over; clamp at 100; negative observed gives 0. `meterRows` uses home-permit limits. Worked table of design section 6 for both real replays: enforced never OVER LIMIT (index 18: 38 / 60, 17 / 30, 17 / 60); unenforced index 10 equal (60 / 60, not over), OVER LIMIT from index 11, index 30 steps 30 / 30 not over.
     - Command: `npm --prefix frontend test -- src/meters.test.ts`
     - Expected red: the file fails to load because `./meters` does not exist; the first failing line is a vitest import-resolution error naming `./meters` and src/meters.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 3.6, 3.7, 3.8, 3.9, 3.10, 3.14_
 
-  - [ ] 7.2 Write property test for meter percentage and over-limit flag
+  - [x] 7.2 Write property test for meter percentage and over-limit flag
     - **Property 3: Meter percentage is clamped and the over-limit flag is exact (P5.3)**
     - Same file. Seeds 1 to 200: random observed and limit pairs including limit 0 and observed equal to limit; `barPercent` in [0, 100], formula for limit above 0, 0 or 100 for limit 0; `isOver` true iff observed above limit. For every event of every real replay, `meterRows` limits equal the home permit and are identical across events.
     - Command: `npm --prefix frontend test -- src/meters.test.ts`
@@ -178,12 +178,12 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
     - **Validates: Requirements 3.8, 3.9, 3.10, 3.14, 10.12**
     - _Requirements: 3.8, 3.9, 3.10, 3.14, 10.12; Property 3 (P5.3)_
 
-  - [ ] 7.3 Implement `meters.ts` and `components/Meters.tsx` (T5.4)
+  - [x] 7.3 Implement `meters.ts` and `components/Meters.tsx` (T5.4)
     - `barPercent`, `isOver`, `meterRows`. `Meters`: semantic `<table>` with caption, row header label, aria-hidden bar (`.meter-fill.ok` / `.meter-fill.over`), `observed / limit` text and the text `OVER LIMIT` when over. Limits stay the home permit for the whole replay.
     - Green check: owner runs `npm --prefix frontend test -- src/meters.test.ts`. Expected: all tests in the file pass, smoke green. Then `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14_
 
-  - [ ] 7.4 Commit task 7
+  - [x] 7.4 Commit task 7
     - After green pastes: `git status --short`, stage `frontend/src/meters.ts`, `frontend/src/components/Meters.tsx`, `frontend/src/meters.test.ts`, commit `feat(ui): meters with clamped bars and over-limit flag (T5.4, task 7)`.
 
 - [ ] 8. Permit card (T5.5)
