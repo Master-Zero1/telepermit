@@ -142,25 +142,25 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 5.4 Commit task 5
     - After green pastes: `git status --short`, stage `frontend/src/playback.ts`, `frontend/src/useReplay.ts`, `frontend/src/playback.test.ts`, commit `feat(ui): playback reducer and useReplay (T5.2, task 5)`.
 
-- [ ] 6. Place cards, token placement and border badge (T5.3)
-  - [ ] 6.1 Write `src/placeMap.test.ts` (T5.3)
+- [x] 6. Place cards, token placement and border badge (T5.3)
+  - [x] 6.1 Write `src/placeMap.test.ts` (T5.3)
     - `tokenPlace` for every index of the three real replays; forged spawn refusal gives `null` at indices 1 and 2 (and `library` at index 0); enforced token in `library` before and `vault` after the `go:vault` check; refusal with non-null `via_action` keeps the place.
     - Command: `npm --prefix frontend test -- src/placeMap.test.ts`
     - Expected red: the file fails to load because `./placeMap` does not exist; the first failing line is a vitest import-resolution error naming `./placeMap` and src/placeMap.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 2.2, 2.3, 2.8_
 
-  - [ ] 6.2 Write `src/badge.test.ts` (T5.3)
+  - [x] 6.2 Write `src/badge.test.ts` (T5.3)
     - Every row of the design section 8 table: no check gives `NO BORDER CHECK YET`; `ADMIT`/`OK` gives `ADMITTED`; `ADMIT`/`UNENFORCED` gives `ADMITTED` with reason `UNENFORCED` (unenforced real replay); `ADMIT_IMPOSED` gives `ADMITTED UNDER IMPOSED PERMIT`; `REFUSE` gives `REFUSED` with reason `BAD_SIGNATURE` (forged real replay); badge persists after later events.
     - Command: `npm --prefix frontend test -- src/badge.test.ts`
     - Expected red: the file fails to load because `./badge` does not exist; the first failing line is a vitest import-resolution error naming `./badge` and src/badge.test.ts. To be confirmed from paste: the exact wording is not stated until the owner pastes a real red run. Any other failure (a different error, a passing run, or a hang) is a stop: report it to the owner and do not implement.
     - _Requirements: 2.4, 2.5, 2.6, 2.7, 2.9, 2.10, 2.11_
 
-  - [ ] 6.3 Implement `placeMap.ts`, `badge.ts`, `components/PlaceCard.tsx` (T5.3)
+  - [x] 6.3 Implement `placeMap.ts`, `badge.ts`, `components/PlaceCard.tsx` (T5.3)
     - `tokenPlace`, `borderBadge` per design sections 7 and 8; `PlaceCard` renders place name, token with visible text "agent here", and the dashed border gate element between cards is rendered by `RunPanel` later.
     - Green check: owner runs `npm --prefix frontend test -- src/placeMap.test.ts` and `npm --prefix frontend test -- src/badge.test.ts`. Expected: all tests in both files pass, smoke green. Then `npm --prefix frontend run build`. Expected: green.
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11_
 
-  - [ ] 6.4 Commit task 6
+  - [x] 6.4 Commit task 6
     - After green pastes: `git status --short`, stage `frontend/src/placeMap.ts`, `frontend/src/badge.ts`, `frontend/src/components/PlaceCard.tsx`, `frontend/src/placeMap.test.ts`, `frontend/src/badge.test.ts`, commit `feat(ui): place cards, token placement and border badge (T5.3, task 6)`.
 
 - [ ] 7. Meters (T5.4)
