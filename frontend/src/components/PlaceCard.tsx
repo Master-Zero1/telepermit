@@ -13,7 +13,7 @@ export function PlaceCard({ place, label, hasToken }: PlaceCardProps) {
       <h3>{label}</h3>
       {hasToken ? (
         <p>
-          <span className="agent-token" role="img" aria-label="agent is here">
+          <span className="agent-token" aria-hidden="true">
             ■
           </span>
           agent here
