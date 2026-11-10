@@ -394,7 +394,7 @@ Group B implements the CLI `--out` option of approved decision (b). It needs the
     - Acceptance check: `test_cli.py` green, ruff clean, commit made.
     - _Requirements: 4.7, 4.9_
 
-- [ ] 12. Group B final checkpoint
+- [x] 12. Group B final checkpoint
   - Blocked until the owner confirms task 10.
   - Run all the checks of task 9 again, with this difference: `git grep -n "GENERATED_BY_CLI" -- backend` now finds only the constant and its uses.
   - Run `uv --directory backend run pytest -q` and report the total as a difference from the recorded baseline, all passing.
