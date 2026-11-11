@@ -105,9 +105,10 @@ interface MainProps {
   selectedId: string;
   mode: Mode;
   onStatus: (status: StateStatus) => void;
+  onCompareStatuses: (statuses: StateStatus[]) => void;
 }
 
-function Main({ load, selectedId, mode, onStatus }: MainProps) {
+function Main({ load, selectedId, mode, onStatus, onCompareStatuses }: MainProps) {
   if (load.phase === 'loading') {
     return <p>Loading replays…</p>;
   }
@@ -119,7 +120,7 @@ function Main({ load, selectedId, mode, onStatus }: MainProps) {
     if (pair.kind === 'unavailable') {
       return <p>{pair.message}</p>;
     }
-    return <CompareView key="compare" pair={pair} />;
+    return <CompareView key="compare" pair={pair} onStatuses={onCompareStatuses} />;
   }
   const result = load.results[selectedId];
   if (result === undefined) {
@@ -136,6 +137,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState('');
   const [mode, setMode] = useState<Mode>('single');
   const [singleStatus, setSingleStatus] = useState<StateStatus | null>(null);
+  const [compareRunStatuses, setCompareRunStatuses] = useState<StateStatus[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,11 +155,11 @@ export function App() {
     };
   }, []);
 
-  // Single mode follows the selected run's status at its current event (reported by SingleRun);
-  // compare mode uses ['ALIVE'].
+  // The cursor follows the shown runs: the selected run in single mode (reported by SingleRun),
+  // both sides at the shared turn in compare mode (reported by CompareView).
   let statuses: StateStatus[] = [];
   if (mode === 'compare') {
-    statuses = ['ALIVE'];
+    statuses = compareRunStatuses;
   } else if (singleStatus !== null) {
     statuses = [singleStatus];
   }
@@ -193,7 +195,13 @@ export function App() {
         ) : null}
       </header>
       <main>
-        <Main load={load} selectedId={selectedId} mode={mode} onStatus={setSingleStatus} />
+        <Main
+          load={load}
+          selectedId={selectedId}
+          mode={mode}
+          onStatus={setSingleStatus}
+          onCompareStatuses={setCompareRunStatuses}
+        />
       </main>
       <Note />
     </>

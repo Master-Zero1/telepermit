@@ -1,10 +1,11 @@
 // Compare view with shared turn and narrow tab switcher (timeline-ui design sections 14 and 15).
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { compareStatuses } from '../compareStatus';
 import { NARROW_QUERY } from '../constants';
 import { eventSummary, positionLabel, SELECTED_MARKER } from '../present';
 import { selectIndex, sharedMax, turnsOf } from '../turns';
-import type { Replay, ReplayEvent } from '../types';
+import type { Replay, ReplayEvent, StateStatus } from '../types';
 import { useMediaQuery } from '../useMediaQuery';
 import { useReplay } from '../useReplay';
 import { PlaybackBar } from './PlaybackBar';
@@ -12,6 +13,7 @@ import { RunPanel } from './RunPanel';
 
 export interface CompareViewProps {
   pair: { unenforced: Replay; enforced: Replay };
+  onStatuses?: (statuses: StateStatus[]) => void;
 }
 
 type Side = 'unenforced' | 'enforced';
@@ -43,7 +45,7 @@ function tabTarget(key: string, current: number): number | null {
   }
 }
 
-export function CompareView({ pair }: CompareViewProps) {
+export function CompareView({ pair, onStatuses }: CompareViewProps) {
   const { unenforced, enforced } = pair;
   const turns = useMemo(
     () => ({ unenforced: turnsOf(unenforced.events), enforced: turnsOf(enforced.events) }),
@@ -55,6 +57,10 @@ export function CompareView({ pair }: CompareViewProps) {
   const [active, setActive] = useState<Side>('unenforced');
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const baseId = useId();
+
+  useEffect(() => {
+    onStatuses?.(compareStatuses(unenforced.events, enforced.events, state.pos));
+  }, [onStatuses, unenforced.events, enforced.events, state.pos]);
 
   const replays: Record<Side, Replay> = { unenforced, enforced };
   const indexOf = (side: Side): number => selectIndex(turns[side], state.pos);
