@@ -274,7 +274,7 @@ Build the static React + TypeScript timeline UI in `frontend/` in one group. The
   - [x] 12.2 Commit task 12
     - After the owner's green paste: `git status --short`, stage `frontend/src/static.test.ts`, commit `test(ui): static source guards (task 12)`.
 
-- [ ] 13. Final checkpoint
+- [x] 13. Final checkpoint
   - The owner runs `npm --prefix frontend test` and `npm --prefix frontend run build` and pastes both summaries. Expected: build green; all test files pass.
   - Report counts as `baseline 1 + N new = total` from the owner's paste (no counts are claimed before then).
   - Owner action (not an agent action): run `npm run dev` once in `frontend/` and check the seed exit criteria: both poisoned-briefing replays play, the forged replay shows REFUSED with no token, the compare view stays in step, KILLED is obvious, keyboard-only operation works, reduced motion removes blink and animation.
