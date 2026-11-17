@@ -17,6 +17,8 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
+      - run: ruff check --config pyproject.toml . ../scripts
+      - run: ruff format --check --config pyproject.toml . ../scripts
       - run: pytest -q
   frontend:
     runs-on: ubuntu-latest
