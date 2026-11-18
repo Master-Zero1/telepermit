@@ -42,7 +42,8 @@ Telescript facts are limited to the list in the README. The checks described her
 | Authentication and key management | The demo authority key is derived from a public seed, so anyone can reproduce it. Do not reuse that pattern. |
 | The "size" cap | Not implemented. |
 | Wall-clock time | Lifetime is simulated: 1.0 second per driver turn. |
-| Live LLM behaviour | Not run. The optional LLM driver was tested only against a fake client. All recorded replays are scripted. |
+| Live LLM behaviour | Not run; the LLM driver was only tested against a fake client. All recorded replays are scripted. |
+| Vulnerabilities in dependencies | `npm audit` reports 3 findings, all in dev tooling (the vitest chain), none in production dependencies. The fix is a breaking vitest upgrade, not applied. |
 
 ## Invariants
 

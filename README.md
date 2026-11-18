@@ -6,60 +6,48 @@ Live demo: https://master-zero1.github.io/telepermit/ (runs in the browser, no A
 
 Built for Kiroween 2026, Resurrection category.
 
+## Quickstart
+
+Needs git, Python 3.11 or newer with [uv](https://docs.astral.sh/uv/), and Node 20. Lines marked `unverified` have not been run by the author of this README.
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/Master-Zero1/telepermit.git
+cd telepermit
+cd backend
+uv sync --extra dev   # unverified
+uv run python -m telepermit.cli run poisoned_briefing --enforce on
+cd ../frontend
+npm ci
+npm run dev   # unverified
+```
+
+### bash (Linux, macOS, Git Bash)
+
+```bash
+git clone https://github.com/Master-Zero1/telepermit.git
+cd telepermit
+cd backend
+uv sync --extra dev   # unverified
+uv run python -m telepermit.cli run poisoned_briefing --enforce on
+cd ../frontend
+npm ci
+npm run dev   # unverified
+```
+
+The `cli` line prints the audit timeline of the scripted run with enforcement on. Use `--enforce off` for the unenforced run. `npm run dev` serves the recorded replays from `frontend/public/replays/`.
+
 ## Why this exists
 
 LLM agents now hold real credentials. A limit written in a prompt is not a control, because the model can be talked out of it, for example by a document it reads. In TelePermit the limits live in the runtime. The agent never sees its permit, its spend or any key, so there is nothing in its context to argue with.
 
-The demo shows one run twice. A briefing document carries an injected instruction to export records from a vault. With enforcement on, the engine refuses the export and kills the agent when it exceeds its allowance, and the audit log shows why. With enforcement off, the same scripted run exports the records and keeps going until the test harness stops it.
+The demo runs one scenario twice. A briefing document carries an injected instruction to export records from a vault.
 
-## Quickstart
+- Enforcement on (20 events): the agent crosses into the Vault under a narrower imposed permit. The export is denied twice. The agent keeps reading records until `spent + cost` would be 41 against a limit of 40, and the engine kills it with `ALLOWANCE_EXCEEDED`. Nothing is exported.
+- Enforcement off (32 events): the same script exports twice, then keeps reading records until the test harness stops it at step 30 with 120 teleclicks spent.
 
-Needs git, Python 3.11 or newer with [uv](https://docs.astral.sh/uv/), and Node 20.
-
-1. Clone:
-
-```
-git clone https://github.com/Master-Zero1/telepermit.git
-```
-
-2. Run the scenario from the command line (enforcement on, scripted agent):
-
-```
-cd telepermit/backend
-uv sync --extra dev
-uv run python -m telepermit.cli run poisoned_briefing --enforce on
-```
-
-3. Open the timeline UI:
-
-```
-cd telepermit/frontend
-npm ci
-npm run dev
-```
-
-Use `--enforce off` in step 2 to see the unenforced run. `npm run dev` starts a dev server and serves the recorded replays from `frontend/public/replays/`.
-
-Command status: the CLI flags and npm scripts above were read from `backend/src/telepermit/cli.py` and `frontend/package.json`. I did not run the quickstart end to end when writing this file, so treat it as unverified until you do.
-
-## Tests
-
-| Suite | Command | Result |
-|---|---|---|
-| Backend | `uv --directory backend run pytest -q` | 329 passed |
-| Frontend | `npm --prefix frontend test` | 18 test files passed, 201 tests passed |
-| Frontend build | `npm --prefix frontend run build` | green |
-
-These results were run and reported by the repository owner. Backend lint is `uv --directory backend run ruff check .` (unverified here). CI runs the same checks in `.github/workflows/ci.yml`.
-
-`npm audit` reports 3 findings, all in dev tooling (vitest and its dependencies). It reports none in production dependencies. The fix is a breaking vitest upgrade, which has not been applied.
-
-## What is real and what is scripted
-
-- The agent in every recorded replay is scripted. It is a fixed list of actions that plays the part of an agent that obeyed the injected instruction. Each replay is labelled "scripted" in the UI. A replay would say "live LLM" only if it were recorded with the LLM driver. None is.
-- Live LLM check: not run. The optional LLM driver (`--driver llm`) was only tested against a fake client. Its request mapping follows the Anthropic documentation and has not been exercised against the live service. The optional driver needs the `llm` extra, `ANTHROPIC_API_KEY` and `AGENT_MODEL` set in the environment (unverified: the exact install command, for example `uv sync --extra dev --extra llm`).
-- All tools are simulated. Nothing is sent anywhere. The "export" appends to an in-memory list.
-- Lifetime is simulated time: the demo clock advances 1.0 second per agent turn.
+The replay viewer plays both side by side and shows why the engine acted.
 
 ## Architecture
 
@@ -86,7 +74,7 @@ These results were run and reported by the repository owner. Backend lint is `uv
   audit log (events) -> replay JSON -> timeline UI (browser)
 ```
 
-Details are in [docs/architecture.md](docs/architecture.md). The names, numbers and behaviour are fixed in [docs/CONTRACTS.md](docs/CONTRACTS.md).
+Every mechanism in this diagram is TelePermit's own design. See the next section for what is and is not from Telescript. Components, event flow, trust boundary and file map are in [docs/architecture.md](docs/architecture.md). Names, numbers and behaviour are fixed in [docs/CONTRACTS.md](docs/CONTRACTS.md).
 
 ## Telescript facts
 
@@ -115,7 +103,8 @@ Only the claims below are made about Telescript.
 - REFUSE when the agent's counters already exceed a ceiling.
 - Tool costs.
 - The "size" cap is not implemented.
-- The same-place interaction rule is not implemented. The demo has one agent.
+
+Scope note: TelePermit does not implement the same-place interaction rule. The demo has one agent.
 
 ## Threat model summary
 
@@ -123,22 +112,43 @@ A permit stops an agent from doing more than it was allowed to do. It does not j
 
 What permits stop (examples, all in the demo or in tests):
 
-- Spending past the allowance. The enforced replay ends in `KILLED ALLOWANCE_EXCEEDED` at 41 against a limit of 40.
-- Using an action the permit or the current place does not offer. The export is logged as `DENIED` and does not run.
+- Spending past the allowance. The enforced replay ends in `KILLED ALLOWANCE_EXCEEDED`, observed 41 against a limit of 40.
+- An action the permit or the current place does not offer. The export is logged as `DENIED` and does not run.
 - A forged or untrusted identity at a border. The forged-identity replay ends in `REFUSED`.
 
 What permits do not stop:
 
-- An injection that stays inside the permit. If a permit allows an action and the allowance covers it, the engine runs it, whatever the document told the agent to do. In this demo the export is blocked because the Vault's ceiling does not list `export_records`, not because the engine recognises an injection. If the Vault listed it, the first export (cost 20) would run, because the agent arrives with 2 spent and 22 is under the limit of 40. The second would be killed at 42.
+- An injection that stays inside the permit. If a permit allows an action and the allowance covers it, the engine runs it, whatever the document told the agent to do. In this demo the export is blocked because the Vault's ceiling does not list `export_records`, not because the engine recognises an injection. If the Vault listed it, one export (cost 20) would run, because the agent arrives with 2 spent and 22 is under the limit of 40. A second export would be killed at 42.
 - Harmful arguments to an allowed action. The engine does not inspect what an agent exports or where it sends it.
 - A compromised host or a changed engine. The engine is the trust boundary.
 
-Full detail, with the invariants list, is in [docs/threat-model.md](docs/threat-model.md).
+Full detail, with the nine invariants, is in [docs/threat-model.md](docs/threat-model.md).
+
+## Testing
+
+| Suite | Command | Result |
+|---|---|---|
+| Backend | `uv --directory backend run pytest -q` | 329 passed |
+| Frontend | `npm --prefix frontend test` | 18 test files, 201 tests passed |
+| Frontend build | `npm --prefix frontend run build` | green |
+| Backend lint | `uv --directory backend run ruff check --config pyproject.toml . ../scripts` | All checks passed |
+| Backend format | `uv --directory backend run ruff format --check --config pyproject.toml . ../scripts` | 42 files already formatted |
+
+The results were run and reported by the repository owner. CI runs lint, tests and the frontend build on every push (`.github/workflows/ci.yml`).
+
+The five specs define 32 named correctness properties (P1.1 to P1.7, P2.1 to P2.5, P3.1 to P3.9, P4.1 to P4.6, P5.1 to P5.5). The backend ones use Hypothesis. The UI ones (P5.x) use a small seeded generator in `frontend/src/test/seeded.ts`, not a property-testing library. An architecture test (`backend/tests/test_architecture.py`) parses imports with `ast` and fails if invariants 1 and 2 are broken.
+
+What the recordings are:
+
+- The agent in every recorded replay is scripted. It is a fixed list of actions that plays an agent that obeyed the injected instruction. Each replay is labelled "scripted" in the UI. A replay would say "live LLM" only if it were recorded with the LLM driver. None is.
+- Live LLM check: not run; the LLM driver was only tested against a fake client. Its request mapping follows the Anthropic documentation and has not been exercised against the live service. Using it needs the `llm` extra (`uv sync --extra llm`, unverified), `ANTHROPIC_API_KEY` and `AGENT_MODEL` set in the environment, then `--driver llm`.
+- All tools are simulated. Nothing is sent anywhere. The "export" appends to an in-memory list.
+- Re-record the replays with `uv --directory backend run python ../scripts/record_replays.py`. Recording twice produces byte-identical files.
 
 ## How Kiro was used
 
 - Specs: five specs in `.kiro/specs/` (permit-identity, tools-places-admission, engine-audit, scenario-drivers-replays, timeline-ui), each written requirements first, then design, then tasks.
-- Property-based tests: Hypothesis properties, named P<n>.<m> in the specs, cover the engine, permits, identity, places, drivers and replays. The UI has its own property tests under vitest.
+- Property-based tests: the 32 properties above are written into each design document and implemented as tests.
 - Steering: seven always-on files in `.kiro/steering/` (product scope, quality bar, security invariants, structure, tech, Telescript facts, workflow).
 - Hooks: five hooks in `.kiro/hooks/` (property-guard, invariant-review, fact-guard, spec-sync, journal).
 - Journal: a dated, factual log of what worked and what went wrong is in [docs/kiro-journal.md](docs/kiro-journal.md).
@@ -149,12 +159,14 @@ Planning documents (steering files, spec briefs, PRD and roadmap) were drafted w
 
 The scenario signs the agent's identity with a deterministic Ed25519 key derived from a public seed (`telepermit-demo-authority`). It exists so replays are byte-for-byte reproducible. Anyone can derive it, so it protects nothing. Do not reuse this pattern for a real authority.
 
-## Repository
+## Known issues
 
-- `backend/`: Python package `telepermit` (permit, identity, tools, place, engine, audit, drivers, scenario, CLI) and its tests.
-- `frontend/`: Vite, React and TypeScript timeline UI. Plain CSS, no external network requests.
-- `scripts/record_replays.py`: records the replay files in `frontend/public/replays/`.
-- `docs/`: contracts, architecture, threat model, build plan and the Kiro journal.
+- The live LLM path has not been run against the live service (see Testing).
+- In the compare view, the screen-reader live region does not announce "Playing", "Paused" or "End of replay". The single-run view does. This is recorded in `docs/PROGRESS.md`.
+- `npm audit` reports 3 findings, all in dev tooling (the vitest chain). It reports none in production dependencies. The fix is a breaking vitest upgrade, which has not been applied.
+- Lifetime is simulated time (1.0 second per agent turn), not wall-clock time.
+- The CLI timeline shortens each summary to 72 characters, so long field lists are cut with "...". The audit log and replay files keep the full values.
+- Not implemented: the "size" cap, the same-place interaction rule, more than one agent, real networking and payments.
 
 ## Licence
 
