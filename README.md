@@ -2,7 +2,7 @@
 
 TelePermit brings back Telescript's permit system (General Magic, 1994) as a runtime that bounds LLM agents: an engine owns every tool call, meters it, checks the agent at place borders, and destroys it the moment it exceeds a limit.
 
-Live demo: LIVE_URL_HERE (runs in the browser, no API key, no backend).
+Live demo: https://master-zero1.github.io/telepermit/ (runs in the browser, no API key, no backend).
 
 Built for Kiroween 2026, Resurrection category.
 
