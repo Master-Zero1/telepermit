@@ -2,8 +2,9 @@
 
 Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Property P6.2
 validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.3 validates
-Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.6 validates
-Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.13 validates Requirement 6.5.2.
+Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.4 validates
+Requirements 6.4.7 and 6.4.11. Property P6.6 validates Requirements 6.7.3, 6.11.2 and 6.11.3.
+Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -613,3 +614,103 @@ def test_p6_3_history_stays_well_formed_and_free_of_banned_words(
         lowered_body = json.dumps(body).lower()
         assert not any(word in lowered_body for word in BANNED_WORDS)
         previous, previous_parts = contents, expected_reply_parts(reply)
+
+
+KNOWN_PART_KEYS = ("text", "functionCall", "thought", "thoughtSignature")
+
+json_values = st.recursive(
+    st.one_of(
+        st.none(),
+        st.booleans(),
+        st.integers(),
+        st.floats(allow_nan=False, allow_infinity=False),
+        short_text,
+    ),
+    lambda children: st.one_of(
+        st.lists(children, max_size=3),
+        st.dictionaries(st.text(max_size=6), children, max_size=3),
+    ),
+    max_leaves=8,
+)
+well_formed_calls = st.fixed_dictionaries(
+    {"name": short_text, "args": st.dictionaries(st.text(max_size=6), json_values, max_size=3)},
+    optional={"id": short_text},
+)
+unknown_part_fields = st.dictionaries(
+    st.text(max_size=8).filter(lambda key: key not in KNOWN_PART_KEYS), json_values, max_size=3
+)
+
+
+@st.composite
+def echo_dict_parts(draw: st.DrawFn) -> dict[str, object]:
+    """A dict part with any of text, functionCall, thought, thoughtSignature and unknown keys."""
+    part: dict[str, object] = draw(unknown_part_fields)
+    known = draw(
+        st.fixed_dictionaries(
+            {},
+            optional={
+                "text": st.one_of(short_text, json_values),
+                "functionCall": st.one_of(well_formed_calls, json_values),
+                "thought": st.one_of(st.booleans(), json_values),
+                "thoughtSignature": st.one_of(st.text(max_size=24), json_values),
+            },
+        )
+    )
+    part.update(known)
+    return part
+
+
+echo_parts = st.lists(
+    st.one_of(
+        echo_dict_parts(),
+        short_text,
+        st.integers(),
+        st.none(),
+        st.lists(json_values, max_size=3),
+    ),
+    min_size=1,
+    max_size=5,
+)
+
+
+def parts_reply(parts: list[object]) -> dict[str, object]:
+    """A Gemini reply whose first candidate holds the given arbitrary JSON parts."""
+    return {"candidates": [{"content": {"role": "model", "parts": parts}}]}
+
+
+# Feature: gemini-driver, Property P6.4: Reply parts are echoed back verbatim
+@given(
+    first=observations(),
+    second=observations(),
+    parts=echo_parts,
+    second_reply=st.one_of(gemini_replies, echo_parts.map(parts_reply)),
+)
+def test_p6_4_reply_parts_are_echoed_back_verbatim(
+    first: Observation,
+    second: Observation,
+    parts: list[object],
+    second_reply: dict[str, object],
+) -> None:
+    """Property P6.4: for any non-empty Reply_Parts list of arbitrary JSON values (dict parts with
+    text, functionCall, thought, thoughtSignature and unknown keys holding nested JSON, plus
+    non-dict entries), the Model_Turn in the next request equals {"role": "model", "parts": <the
+    received list>} with every entry in the received order and every field value equal, and the
+    list the Fake_Client returned is not mutated. This checks only the offline half of 6.4.11; the
+    live half (the provider accepting the echoed parts, e.g. thoughtSignature) is UNVERIFIED until
+    the first live run.
+    Validates: 6.4.7, 6.4.11"""
+    snapshot = copy.deepcopy(parts)
+    client = FakeGeminiClient(parts_reply(parts), second_reply)
+    driver = GeminiDriver(client, MODEL)
+
+    driver.propose(first)
+    driver.propose(second)
+
+    assert len(client.calls) == 2
+    model, body = client.calls[1]
+    assert model == MODEL
+    contents = body["contents"]
+    assert isinstance(contents, list)
+    assert len(contents) > 1, "no Model_Turn in the next request"
+    assert contents[1] == {"role": "model", "parts": snapshot}
+    assert parts == snapshot
