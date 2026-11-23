@@ -1,7 +1,8 @@
 """Property tests for the Gemini driver behind an injected fake client (CONTRACTS section 7).
 
-Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Property P6.13
-validates Requirement 6.5.2.
+Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Property P6.2
+validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.6 validates
+Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -21,7 +22,7 @@ from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from telepermit.drivers import FINISH_ACTION, GO_PREFIX
-from telepermit.drivers.base import Observation
+from telepermit.drivers.base import Observation, Proposal
 from telepermit.drivers.llm import SYSTEM_PROMPT, GeminiDriver
 from telepermit.scenarios.poisoned_briefing import (
     DEMO_SEED,
@@ -319,3 +320,206 @@ def test_p6_6_request_bodies_carry_no_key_and_no_hidden_run_state(
             assert signature_hex not in text
             assert KEY_HEX not in text
             assert not any(word in text for word in BANNED_WORDS)
+
+
+FINISH_PROPOSAL = Proposal(FINISH_ACTION, {})
+SCENARIO_TOOL_NAMES = (READ_DOCUMENT, SEARCH_ARCHIVE, READ_RECORDS, EXPORT_RECORDS)
+UNKNOWN_NAMES = ("delete_all", "send_email", "mystery")
+FORBIDDEN_TARGETS = (
+    "telepermit.engine.Engine.step",
+    "telepermit.engine.Engine.run",
+    "telepermit.place.Place.execute",
+)
+
+non_string_names = st.one_of(
+    st.none(), st.integers(), st.booleans(), st.lists(st.integers(), max_size=2)
+)
+arg_values = st.one_of(
+    short_text,
+    st.integers(),
+    st.floats(allow_nan=False, allow_infinity=False),
+    st.booleans(),
+    st.lists(st.one_of(st.integers(), short_text), max_size=3),
+    st.dictionaries(st.text(max_size=4), st.one_of(st.integers(), short_text), max_size=2),
+)
+call_args = st.dictionaries(
+    st.one_of(st.sampled_from(ARG_NAMES), st.text(max_size=6)), arg_values, max_size=3
+)
+mapping_text_parts = st.one_of(text_parts, short_text.map(lambda text: {"text": text}))
+not_call_parts = st.one_of(
+    mapping_text_parts,
+    short_text,
+    st.integers(),
+    st.none(),
+    st.sampled_from(({"functionCall": "go"}, {"functionCall": None}, {"functionCall": ["go"]})),
+)
+
+
+@st.composite
+def mapping_function_calls(draw: st.DrawFn, place_tools: tuple[str, ...]) -> dict[str, object]:
+    """A Function_Call part whose name, args and id are each present, missing or malformed."""
+    name_choices = [
+        st.sampled_from(("go", FINISH_ACTION, *SCENARIO_TOOL_NAMES, *UNKNOWN_NAMES)),
+        tool_names,
+        non_string_names,
+    ]
+    if place_tools:
+        name_choices.append(st.sampled_from(place_tools))
+    call: dict[str, object] = {}
+    if draw(st.integers(min_value=0, max_value=5)):
+        call["name"] = draw(st.one_of(*name_choices))
+    args_shape = draw(st.integers(min_value=0, max_value=3))
+    if args_shape < 2:
+        call["args"] = draw(call_args)
+    elif args_shape == 2:
+        call["args"] = draw(non_mapping_args)
+    if draw(st.booleans()):
+        call["id"] = draw(st.one_of(st.sampled_from(CALL_IDS), st.integers()))
+    return {"functionCall": call}
+
+
+@st.composite
+def one_call_replies(draw: st.DrawFn, place_tools: tuple[str, ...]) -> dict[str, object]:
+    """Exactly one Function_Call among parts that are not Function_Calls."""
+    before = draw(st.lists(not_call_parts, max_size=2))
+    after = draw(st.lists(not_call_parts, max_size=2))
+    return reply_of([*before, draw(mapping_function_calls(place_tools)), *after])
+
+
+@st.composite
+def many_call_replies(draw: st.DrawFn, place_tools: tuple[str, ...]) -> dict[str, object]:
+    """2 to 4 Function_Calls mixed in any order with parts that are not Function_Calls."""
+    calls = draw(st.lists(mapping_function_calls(place_tools), min_size=2, max_size=4))
+    others = draw(st.lists(not_call_parts, max_size=3))
+    return reply_of(list(draw(st.permutations(calls + others))))
+
+
+@st.composite
+def later_candidate_replies(draw: st.DrawFn, place_tools: tuple[str, ...]) -> dict[str, object]:
+    """A first candidate without a Function_Call, then 1 or 2 candidates that hold calls."""
+    first_parts = draw(st.lists(not_call_parts, max_size=2))
+    firsts: tuple[dict[str, object], ...] = (
+        {"content": {"role": "model", "parts": first_parts}},
+        {},
+        {"content": {"role": "model"}},
+    )
+    first = draw(st.sampled_from(firsts))
+    later_parts = st.lists(mapping_function_calls(place_tools), min_size=1, max_size=2)
+    later = [
+        {"content": {"role": "model", "parts": draw(later_parts)}}
+        for _ in range(draw(st.integers(min_value=1, max_value=2)))
+    ]
+    return {"candidates": [first, *later]}
+
+
+@st.composite
+def malformed_replies(draw: st.DrawFn, place_tools: tuple[str, ...]) -> dict[str, object]:
+    """No candidates, or a malformed step on the path to the parts, with a call placed nearby."""
+    call = draw(mapping_function_calls(place_tools))
+    content = {"role": "model", "parts": [call]}
+    shapes: tuple[dict[str, object], ...] = (
+        {},
+        {"promptFeedback": {"blockReason": "SAFETY"}},
+        {"candidates": []},
+        {"candidates": None},
+        {"candidates": "candidates"},
+        {"candidates": {"0": {"content": content}}},
+        {"candidates": [[call], {"content": content}]},
+        {"candidates": ["candidate"]},
+        {"candidates": [None]},
+        {"candidates": [{}]},
+        {"candidates": [{"content": None}]},
+        {"candidates": [{"content": [call]}]},
+        {"candidates": [{"content": "content"}]},
+        {"candidates": [{"content": {"role": "model"}}]},
+        {"candidates": [{"content": {"parts": None}}]},
+        {"candidates": [{"content": {"parts": call}}]},
+        {"candidates": [{"content": {"parts": "parts"}}]},
+        {"candidates": [{"content": {"parts": []}}]},
+    )
+    return draw(st.sampled_from(shapes))
+
+
+@st.composite
+def mapping_turns(draw: st.DrawFn) -> tuple[Observation, dict[str, object]]:
+    """One Observation and one Fake_Client reply that may name the Observation's Place_Tools."""
+    observation = draw(observations())
+    place_tools = tuple(
+        str(entry["name"])
+        for entry in observation.tools
+        if str(entry["name"]) != FINISH_ACTION and not str(entry["name"]).startswith(GO_PREFIX)
+    )
+    reply = draw(
+        st.one_of(
+            malformed_replies(place_tools),
+            st.lists(mapping_text_parts, min_size=1, max_size=3).map(reply_of),
+            st.lists(not_call_parts, min_size=1, max_size=3).map(reply_of),
+            one_call_replies(place_tools),
+            many_call_replies(place_tools),
+            later_candidate_replies(place_tools),
+        )
+    )
+    return observation, reply
+
+
+def expected_proposal(reply: Mapping[str, object]) -> Proposal:
+    """Independent model of 6.2 and 6.3: the first Function_Call of candidate 0, else finish."""
+    candidates = reply.get("candidates")
+    if not isinstance(candidates, list) or not candidates or not isinstance(candidates[0], dict):
+        return FINISH_PROPOSAL
+    content = candidates[0].get("content")
+    parts = content.get("parts") if isinstance(content, dict) else None
+    if not isinstance(parts, list):
+        return FINISH_PROPOSAL
+    calls = [
+        part["functionCall"]
+        for part in parts
+        if isinstance(part, dict) and isinstance(part.get("functionCall"), dict)
+    ]
+    if not calls:
+        return FINISH_PROPOSAL
+    raw_name = calls[0].get("name")
+    name = raw_name if isinstance(raw_name, str) else ""
+    raw_args = calls[0].get("args")
+    args = raw_args if isinstance(raw_args, dict) else {}
+    if name == "go":
+        return Proposal(GO_PREFIX + (str(args["place"]) if "place" in args else ""), {})
+    if name == FINISH_ACTION:
+        return FINISH_PROPOSAL
+    return Proposal(name, {str(key): str(value) for key, value in args.items()})
+
+
+# Feature: gemini-driver, Property P6.2: Each turn proposes the first Function_Call, else finish
+@given(turns=st.lists(mapping_turns(), min_size=1, max_size=6))
+def test_p6_2_each_turn_proposes_the_first_function_call_else_finish(
+    turns: list[tuple[Observation, dict[str, object]]],
+) -> None:
+    """Property P6.2: for any run of 1 to 6 turns with generated Observations and Fake_Client
+    replies, each propose returns exactly one Proposal equal to an independent model (the first
+    Function_Call of the first candidate maps to go, finish or the named action with string args;
+    no Function_Call or a malformed reply gives finish), the Fake_Client is called exactly once per
+    propose, no exception is raised, and stand-ins for Engine.step, Engine.run and Place.execute
+    record zero calls.
+    Validates: 6.2.1, 6.2.2, 6.2.3, 6.2.4, 6.2.5, 6.3.1, 6.3.2, 6.3.3, 6.3.4, 6.3.5, 6.11.4,
+    6.12.4"""
+    expected = [expected_proposal(reply) for _, reply in turns]
+    client = FakeGeminiClient(*(copy.deepcopy(reply) for _, reply in turns))
+    driver = GeminiDriver(client, MODEL)
+    forbidden_calls: list[str] = []
+
+    def stand_in(target: str) -> Callable[..., None]:
+        def record(*args: object, **kwargs: object) -> None:
+            forbidden_calls.append(target)
+
+        return record
+
+    with pytest.MonkeyPatch.context() as patcher:
+        for target in FORBIDDEN_TARGETS:
+            patcher.setattr(target, stand_in(target))
+        for count, ((observation, _), want) in enumerate(zip(turns, expected, strict=True), 1):
+            proposal = driver.propose(observation)
+            assert isinstance(proposal, Proposal)
+            assert proposal == want
+            assert len(client.calls) == count
+
+    assert forbidden_calls == []
