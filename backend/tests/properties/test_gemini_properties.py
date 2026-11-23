@@ -1,6 +1,7 @@
 """Property tests for the Gemini driver behind an injected fake client (CONTRACTS section 7).
 
-Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10.
+Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Property P6.13
+validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -189,3 +190,27 @@ def test_p6_1_request_declares_exactly_the_observation_actions(observation: Obse
     assert body["systemInstruction"] == {"parts": [{"text": SYSTEM_PROMPT}]}
     lowered = json.dumps(body["systemInstruction"]).lower()
     assert not any(word in lowered for word in BANNED_WORDS)
+
+
+# ASCII and Unicode characters that str.isspace() accepts, so str.strip() removes them.
+WHITESPACE = (
+    " \t\n\r\x0b\x0c\x1c\x1d\x1e\x1f\x85\xa0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000"
+)
+blank_models = st.one_of(st.just(""), st.text(alphabet=WHITESPACE, max_size=12))
+
+
+# Feature: gemini-driver, Property P6.13: A blank model is rejected at construction
+@given(model=blank_models)
+def test_p6_13_blank_model_is_rejected_at_construction(model: str) -> None:
+    """Property P6.13: for any string made only of whitespace characters, including the empty
+    string, GeminiDriver(fake, model) raises ValueError and the Fake_Client records zero calls.
+    Validates: 6.5.2"""
+    assert model.strip() == ""
+    client = FakeGeminiClient()
+
+    with pytest.raises(ValueError):
+        GeminiDriver(client, model)
+
+    assert client.calls == []
