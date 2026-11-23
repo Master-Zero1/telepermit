@@ -1,7 +1,8 @@
 """Property tests for the Gemini driver behind an injected fake client (CONTRACTS section 7).
 
 Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Property P6.2
-validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.6 validates
+validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.3 validates
+Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.6 validates
 Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
@@ -523,3 +524,92 @@ def test_p6_2_each_turn_proposes_the_first_function_call_else_finish(
             assert len(client.calls) == count
 
     assert forbidden_calls == []
+
+
+NOT_EXECUTED_TEXT = "Not executed: only one action is taken per turn."
+TURN_KEYS = {"role", "parts"}
+
+
+def expected_reply_parts(reply: Mapping[str, object]) -> list[object]:
+    """Independent model of Reply_Parts: the parts list of the first candidate, else empty."""
+    candidates = reply.get("candidates")
+    if not isinstance(candidates, list) or not candidates or not isinstance(candidates[0], dict):
+        return []
+    content = candidates[0].get("content")
+    parts = content.get("parts") if isinstance(content, dict) else None
+    return parts if isinstance(parts, list) else []
+
+
+def expected_responses(parts: list[object], last_result: str | None) -> list[dict[str, object]]:
+    """One Function_Response per Function_Call in order: last_result first, then Not executed."""
+    responses: list[dict[str, object]] = []
+    for part in parts:
+        if not isinstance(part, dict) or not isinstance(part.get("functionCall"), dict):
+            continue
+        call = part["functionCall"]
+        name = call.get("name")
+        first_text = "" if last_result is None else last_result
+        response: dict[str, object] = {
+            "name": name if isinstance(name, str) else "",
+            "response": {"result": NOT_EXECUTED_TEXT if responses else first_text},
+        }
+        if isinstance(call.get("id"), str):
+            response["id"] = call["id"]
+        responses.append({"functionResponse": response})
+    return responses
+
+
+# Feature: gemini-driver, Property P6.3: The History stays well-formed and free of Banned_Words
+@given(turns=st.lists(mapping_turns(), min_size=1, max_size=6))
+def test_p6_3_history_stays_well_formed_and_free_of_banned_words(
+    turns: list[tuple[Observation, dict[str, object]]],
+) -> None:
+    """Property P6.3: for any run of 1 to 6 turns with the P6.2 generators, every request's
+    contents starts with a User_Turn and alternates user and model with no two adjacent User_Turns;
+    it grows by one User_Turn and one Model_Turn after a non-empty reply and by no turn after an
+    empty one, whose next place text is merged into the last User_Turn; the first User_Turn is one
+    text part with the task and the place; each later User_Turn holds one Function_Response per
+    Function_Call of the previous Reply_Parts, in order with matching names and ids, the first
+    carrying last_result or "" and later ones the Not executed text, then one place text part; and
+    when the Observations and replies hold no Banned_Word, no request body holds one.
+    Validates: 6.4.1, 6.4.2, 6.4.3, 6.4.4, 6.4.5, 6.4.6, 6.4.9, 6.4.10, 6.1.10, 6.12.5"""
+    inputs = [[obs.task, obs.place, obs.last_result, obs.tools, reply] for obs, reply in turns]
+    lowered_inputs = json.dumps(inputs).lower()
+    assume(not any(word in lowered_inputs for word in BANNED_WORDS))
+
+    client = FakeGeminiClient(*(copy.deepcopy(reply) for _, reply in turns))
+    driver = GeminiDriver(client, MODEL)
+    first = turns[0][0]
+    first_text = {"text": f"Task: {first.task}\nYou are in {first.place}."}
+    previous: list[dict[str, object]] = []
+    previous_parts: list[object] = []
+
+    for index, (observation, reply) in enumerate(turns):
+        driver.propose(observation)
+        assert len(client.calls) == index + 1
+        body = client.calls[index][1]
+        contents = body["contents"]
+        assert isinstance(contents, list)
+        assert all(isinstance(entry, dict) and set(entry) == TURN_KEYS for entry in contents)
+        roles = [entry["role"] for entry in contents]
+        assert roles == ["user" if position % 2 == 0 else "model" for position in range(len(roles))]
+        assert all(not (a == b == "user") for a, b in zip(roles, roles[1:], strict=False))
+        assert contents[0]["parts"][0] == first_text
+
+        if index == 0:
+            assert contents == [{"role": "user", "parts": [first_text]}]
+        else:
+            place_part = {"text": f"You are now in {observation.place}."}
+            new_parts = [*expected_responses(previous_parts, observation.last_result), place_part]
+            if previous_parts:
+                assert len(contents) == len(previous) + 2
+                assert contents[: len(previous)] == previous
+                assert contents[-1]["parts"] == new_parts
+            else:
+                assert len(contents) == len(previous)
+                assert contents[:-1] == previous[:-1]
+                assert contents[-1]["parts"] == [*previous[-1]["parts"], *new_parts]
+
+        lowered_body = json.dumps(body).lower()
+        assert not any(word in lowered_body for word in BANNED_WORDS)
+        previous, previous_parts = contents, expected_reply_parts(reply)
