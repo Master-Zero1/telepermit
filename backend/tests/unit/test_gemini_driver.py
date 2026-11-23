@@ -3,6 +3,7 @@
 Spec 6 (gemini-driver), task 1.1. Requirements tested here: 6.1.1, 6.1.4, 6.1.6, 6.1.9,
 6.4.3, 6.5.1, 6.5.2, 6.9.1, 6.9.6 (Gemini half), 6.11.5, 6.12.1, 6.12.2, 6.12.6.
 Task 3.1 adds response mapping: 6.2.1 to 6.2.5 and 6.3.1 to 6.3.5.
+Task 4.1 adds the History examples: 6.4.1, 6.4.2, 6.4.4, 6.4.5, 6.4.6, 6.4.8, 6.4.10.
 """
 
 from __future__ import annotations
@@ -313,3 +314,126 @@ def test_response_mapping(reply: Mapping[str, object], expected: Proposal) -> No
     proposal = GeminiDriver(client, MODEL).propose(observation())
     assert proposal == expected
     assert len(client.calls) == 1
+
+
+BRIEFING = "Q3 BRIEFING. ..."
+FIRST_USER_TURN: dict[str, object] = {
+    "role": "user",
+    "parts": [{"text": "Task: T\nYou are in library."}],
+}
+MODEL_TURN_1: dict[str, object] = {
+    "role": "model",
+    "parts": [
+        {
+            "functionCall": {"name": "read_document", "args": {"name": "briefing-q3"}, "id": "c1"},
+            "thoughtSignature": "sig-A",
+        },
+        {"functionCall": {"name": "go", "args": {"place": "vault"}}},
+    ],
+}
+
+
+def turn_two_contents(result: str) -> list[dict[str, object]]:
+    """The worked example's turn 2 `contents`, with `result` in the first Function_Response."""
+    return [
+        copy.deepcopy(FIRST_USER_TURN),
+        copy.deepcopy(MODEL_TURN_1),
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "read_document",
+                        "id": "c1",
+                        "response": {"result": result},
+                    },
+                },
+                {
+                    "functionResponse": {
+                        "name": "go",
+                        "response": {
+                            "result": "Not executed: only one action is taken per turn.",
+                        },
+                    },
+                },
+                {"text": "You are now in library."},
+            ],
+        },
+    ]
+
+
+def test_turn_two_request_matches_the_worked_example() -> None:
+    """Requirements 6.4.1, 6.4.4, 6.4.6: turn 2 echoes the Model_Turn and answers both calls."""
+    client = FakeGeminiClient(copy.deepcopy(REPLY_1), copy.deepcopy(REPLY_2_BLOCKED))
+    driver = GeminiDriver(client, MODEL)
+    driver.propose(observation())
+    driver.propose(observation(last_result=BRIEFING, turn=2))
+
+    assert len(client.calls) == 2
+    assert client.calls[1][1]["contents"] == turn_two_contents(BRIEFING)
+
+
+def test_turn_three_merges_into_the_last_user_turn_after_an_empty_reply() -> None:
+    """Requirements 6.4.2, 6.4.5, 6.4.10: after a blocked reply, merge into the User_Turn."""
+    client = FakeGeminiClient(
+        copy.deepcopy(REPLY_1),
+        copy.deepcopy(REPLY_2_BLOCKED),
+        copy.deepcopy(REPLY_3),
+    )
+    driver = GeminiDriver(client, MODEL)
+    driver.propose(observation())
+    driver.propose(observation(last_result=BRIEFING, turn=2))
+    driver.propose(observation(turn=3))
+
+    assert len(client.calls) == 3
+    contents = client.calls[2][1]["contents"]
+    expected = turn_two_contents(BRIEFING)
+    last_parts = expected[-1]["parts"]
+    assert isinstance(last_parts, list)
+    last_parts.append({"text": "You are now in library."})
+    assert contents == expected
+    assert isinstance(contents, list)
+    assert [entry["role"] for entry in contents] == ["user", "model", "user"]
+    assert contents[-1]["parts"][-2:] == [
+        {"text": "You are now in library."},
+        {"text": "You are now in library."},
+    ]
+
+
+def test_none_last_result_gives_empty_first_response() -> None:
+    """Requirement 6.4.6: a null `last_result` is sent as `""` in the first Function_Response."""
+    client = FakeGeminiClient(copy.deepcopy(REPLY_1), copy.deepcopy(REPLY_2_BLOCKED))
+    driver = GeminiDriver(client, MODEL)
+    driver.propose(observation())
+    driver.propose(observation(last_result=None, turn=2))
+
+    assert client.calls[1][1]["contents"] == turn_two_contents("")
+
+
+class MutatingFakeGeminiClient(FakeGeminiClient):
+    """Records like FakeGeminiClient, then mutates the body object it received."""
+
+    def generate_content(self, model: str, body: Mapping[str, object]) -> Mapping[str, object]:
+        reply = super().generate_content(model, body)
+        contents = body["contents"]
+        assert isinstance(contents, list)
+        first_parts = contents[0]["parts"]
+        assert isinstance(first_parts, list)
+        first_parts.append({"text": "INJECTED"})
+        contents.append({"role": "user", "parts": [{"text": "EXTRA"}]})
+        tools = body["tools"]
+        assert isinstance(tools, list)
+        tools.clear()
+        return reply
+
+
+def test_client_mutating_its_request_does_not_change_the_next_request() -> None:
+    """Requirement 6.4.8: client changes to a received body never reach the History."""
+    client = MutatingFakeGeminiClient(copy.deepcopy(REPLY_1), copy.deepcopy(REPLY_2_BLOCKED))
+    driver = GeminiDriver(client, MODEL)
+    driver.propose(observation())
+    driver.propose(observation(last_result=BRIEFING, turn=2))
+
+    assert len(client.calls) == 2
+    assert client.calls[0][1]["contents"] == [FIRST_USER_TURN]
+    assert client.calls[1][1]["contents"] == turn_two_contents(BRIEFING)
