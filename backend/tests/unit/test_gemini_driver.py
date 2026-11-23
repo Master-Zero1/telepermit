@@ -2,6 +2,7 @@
 
 Spec 6 (gemini-driver), task 1.1. Requirements tested here: 6.1.1, 6.1.4, 6.1.6, 6.1.9,
 6.4.3, 6.5.1, 6.5.2, 6.9.1, 6.9.6 (Gemini half), 6.11.5, 6.12.1, 6.12.2, 6.12.6.
+Task 3.1 adds response mapping: 6.2.1 to 6.2.5 and 6.3.1 to 6.3.5.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from collections.abc import Callable, Iterator, Mapping
 
 import pytest
 
-from telepermit.drivers.base import Observation
+from telepermit.drivers.base import Observation, Proposal
 from telepermit.drivers.llm import SYSTEM_PROMPT, GeminiDriver
 
 MODEL = "fake-model"
@@ -191,3 +192,124 @@ def test_turn_one_request_matches_the_worked_example() -> None:
         },
     ]
     assert body["toolConfig"] == {"functionCallingConfig": {"mode": "AUTO"}}
+
+
+FINISH = Proposal("finish", {})
+REPLY_2_BLOCKED: dict[str, object] = {"promptFeedback": {"blockReason": "SAFETY"}}
+REPLY_3: dict[str, object] = {
+    "candidates": [
+        {"content": {"parts": [{"text": "Done."}, {"functionCall": {"name": "finish"}}]}},
+    ],
+}
+
+
+def reply_of(*parts: object) -> dict[str, object]:
+    """A reply whose first and only candidate holds the given parts."""
+    return {"candidates": [{"content": {"role": "model", "parts": list(parts)}}]}
+
+
+def call_part(function_call: Mapping[str, object]) -> dict[str, object]:
+    """A Function_Call part wrapping the given `functionCall` value."""
+    return {"functionCall": dict(function_call)}
+
+
+def test_worked_example_proposals() -> None:
+    """Requirements 6.2.1, 6.3.1, 6.3.2: the worked example's three replies map as designed."""
+    client = FakeGeminiClient(REPLY_1, REPLY_2_BLOCKED, REPLY_3)
+    driver = GeminiDriver(client, MODEL)
+    proposals = [
+        driver.propose(observation()),
+        driver.propose(observation(last_result="Q3 BRIEFING. ...", turn=2)),
+        driver.propose(observation(turn=3)),
+    ]
+    assert proposals == [
+        Proposal("read_document", {"name": "briefing-q3"}),
+        FINISH,
+        FINISH,
+    ]
+    assert len(client.calls) == 3
+
+
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [
+        pytest.param(
+            reply_of(call_part({"name": "go", "args": {}})),
+            Proposal("go:", {}),
+            id="go-without-place",
+        ),
+        pytest.param(
+            reply_of(call_part({"name": "go", "args": {"place": "vault", "extra": "x"}})),
+            Proposal("go:vault", {}),
+            id="go-drops-extra-args",
+        ),
+        pytest.param(
+            reply_of(call_part({"name": "finish", "args": {"reason": "done"}})),
+            FINISH,
+            id="finish-drops-args",
+        ),
+        pytest.param(
+            reply_of(
+                call_part(
+                    {
+                        "name": "mystery",
+                        "args": {"n": 3, "b": True, "l": [1, 2], "d": {"k": "v"}},
+                    },
+                ),
+            ),
+            Proposal("mystery", {"n": "3", "b": "True", "l": "[1, 2]", "d": "{'k': 'v'}"}),
+            id="unknown-name-str-forms",
+        ),
+        pytest.param(
+            reply_of(call_part({"args": {"x": "y"}})),
+            Proposal("", {"x": "y"}),
+            id="missing-name",
+        ),
+        pytest.param(
+            reply_of(call_part({"name": 7, "args": {"x": "y"}})),
+            Proposal("", {"x": "y"}),
+            id="non-string-name",
+        ),
+        pytest.param(
+            reply_of(call_part({"name": "read_document", "args": "briefing-q3"})),
+            Proposal("read_document", {}),
+            id="args-not-object",
+        ),
+        pytest.param(
+            {
+                "candidates": [
+                    {"content": {"parts": [{"text": "thinking"}]}},
+                    {"content": {"parts": [call_part({"name": "read_document", "args": {}})]}},
+                ],
+            },
+            FINISH,
+            id="calls-only-in-second-candidate",
+        ),
+        pytest.param(
+            {"candidates": {"0": {"content": {"parts": [call_part({"name": "go"})]}}}},
+            FINISH,
+            id="candidates-not-list",
+        ),
+        pytest.param(
+            {"candidates": [["not", "a", "dict"]]},
+            FINISH,
+            id="first-candidate-not-dict",
+        ),
+        pytest.param(
+            {"candidates": [{"content": [call_part({"name": "go"})]}]},
+            FINISH,
+            id="content-not-dict",
+        ),
+        pytest.param(
+            {"candidates": [{"content": {"parts": {"functionCall": {"name": "go"}}}}]},
+            FINISH,
+            id="parts-not-list",
+        ),
+    ],
+)
+def test_response_mapping(reply: Mapping[str, object], expected: Proposal) -> None:
+    """Requirements 6.2.2 to 6.2.5, 6.3.4, 6.3.5: each reply maps to its Proposal."""
+    client = FakeGeminiClient(reply)
+    proposal = GeminiDriver(client, MODEL).propose(observation())
+    assert proposal == expected
+    assert len(client.calls) == 1
