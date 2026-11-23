@@ -11,17 +11,34 @@ health check is suppressed. Teardown fails the module if any network attempt was
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import socket
 from collections.abc import Callable, Iterator, Mapping
 
 import pytest
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from telepermit.drivers import FINISH_ACTION, GO_PREFIX
 from telepermit.drivers.base import Observation
 from telepermit.drivers.llm import SYSTEM_PROMPT, GeminiDriver
+from telepermit.scenarios.poisoned_briefing import (
+    DEMO_SEED,
+    EXPORT_DESTINATION,
+    LIBRARY,
+    TASK,
+    VAULT,
+    run_scenario,
+)
+from telepermit.tools import (
+    BRIEFING_NAME,
+    BRIEFING_Q3_TEXT,
+    EXPORT_RECORDS,
+    READ_DOCUMENT,
+    READ_RECORDS,
+    SEARCH_ARCHIVE,
+)
 
 MODEL = "fake-model"
 BODY_KEYS = {"contents", "systemInstruction", "tools", "toolConfig"}
@@ -214,3 +231,91 @@ def test_p6_13_blank_model_is_rejected_at_construction(model: str) -> None:
         GeminiDriver(client, model)
 
     assert client.calls == []
+
+
+KEY_HEX = hashlib.sha256(DEMO_SEED).digest().hex()
+KEY_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+CALL_NAMES = (
+    READ_DOCUMENT,
+    SEARCH_ARCHIVE,
+    READ_RECORDS,
+    EXPORT_RECORDS,
+    "go",
+    FINISH_ACTION,
+    "delete_all",
+    "send_email",
+    "",
+)
+ARG_NAMES = ("name", "query", "destination", "place", "extra")
+ARG_VALUES = (BRIEFING_NAME, EXPORT_DESTINATION, LIBRARY, VAULT, "q3", "")
+CALL_IDS = ("c1", "c2", "c3")
+REPLY_TEXTS = ("", "Thinking.", "Done.", "Reading the briefing now.")
+FIXED_TEXT = "\n".join(
+    (SYSTEM_PROMPT, TASK, BRIEFING_Q3_TEXT, DEFAULT_FINISH_TEXT, GO_TEXT)
+    + CALL_NAMES
+    + ARG_NAMES
+    + ARG_VALUES
+    + CALL_IDS
+    + REPLY_TEXTS
+).lower()
+
+api_keys = st.text(alphabet=KEY_ALPHABET, min_size=20, max_size=40).map(lambda tail: "AIza" + tail)
+
+
+def reply_of(parts: list[dict[str, object]]) -> dict[str, object]:
+    """A Gemini reply whose first candidate holds the given parts."""
+    return {"candidates": [{"content": {"role": "model", "parts": parts}}]}
+
+
+FINISH_REPLY = reply_of([{"functionCall": {"name": FINISH_ACTION, "args": {}}}])
+
+
+@st.composite
+def function_call_parts(draw: st.DrawFn) -> dict[str, object]:
+    """A Function_Call part named after a scenario action, go, finish or an unknown name."""
+    call: dict[str, object] = {
+        "name": draw(st.sampled_from(CALL_NAMES)),
+        "args": draw(
+            st.dictionaries(st.sampled_from(ARG_NAMES), st.sampled_from(ARG_VALUES), max_size=2)
+        ),
+    }
+    if draw(st.booleans()):
+        call["id"] = draw(st.sampled_from(CALL_IDS))
+    return {"functionCall": call}
+
+
+text_parts = st.sampled_from(REPLY_TEXTS).map(lambda text: {"text": text})
+gemini_replies = st.one_of(
+    st.lists(st.one_of(function_call_parts(), text_parts), min_size=1, max_size=3).map(reply_of),
+    st.lists(text_parts, min_size=1, max_size=2).map(reply_of),
+    st.just(EMPTY_REPLY),
+)
+
+
+# Feature: gemini-driver, Property P6.6: Request bodies carry no key and no hidden run state
+@given(replies=st.lists(gemini_replies, min_size=1, max_size=30), api_key=api_keys)
+def test_p6_6_request_bodies_carry_no_key_and_no_hidden_run_state(
+    replies: list[dict[str, object]], api_key: str
+) -> None:
+    """Property P6.6: for any sequence of 1 to 30 fake replies run through run_scenario with a
+    GeminiDriver for both enforce values, and any generated API key the driver never receives, the
+    lower-cased JSON of every request body contains no occurrence of the key, the identity
+    signature_hex, sha256(DEMO_SEED).hex() or a Banned_Word.
+    Validates: 6.7.3, 6.11.2, 6.11.3"""
+    lowered_key = api_key.lower()
+    assume(lowered_key not in FIXED_TEXT)
+
+    for enforce in (True, False):
+        client = FakeGeminiClient(*copy.deepcopy(replies), FINISH_REPLY)
+        run = run_scenario(enforce=enforce, driver=GeminiDriver(client, MODEL))
+        signature_hex = str(run.result.events[0].data["identity"]["signature_hex"]).lower()
+        assert len(signature_hex) == 128
+
+        assert client.calls
+        for model, body in client.calls:
+            assert model == MODEL
+            text = json.dumps(body).lower()
+            assert lowered_key not in text
+            assert signature_hex not in text
+            assert KEY_HEX not in text
+            assert not any(word in text for word in BANNED_WORDS)
