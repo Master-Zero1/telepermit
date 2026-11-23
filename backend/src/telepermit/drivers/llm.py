@@ -260,6 +260,43 @@ def _declarations(observation: Observation) -> list[dict[str, object]]:
     return declared
 
 
+def _reply_parts(reply: object) -> list[object]:
+    """The parts of candidates[0], or [] when any step of the reply shape is malformed."""
+    if not isinstance(reply, Mapping):
+        return []
+    candidates = reply.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        return []
+    first = candidates[0]
+    if not isinstance(first, dict):
+        return []
+    content = first.get("content")
+    if not isinstance(content, dict):
+        return []
+    parts = content.get("parts")
+    return parts if isinstance(parts, list) else []
+
+
+def _function_calls(parts: list[object]) -> list[tuple[str, dict[str, object], str | None]]:
+    """(name, args, id) of every part that is a dict whose functionCall value is a dict."""
+    calls: list[tuple[str, dict[str, object], str | None]] = []
+    for part in parts:
+        call = part.get("functionCall") if isinstance(part, dict) else None
+        if not isinstance(call, dict):
+            continue
+        name = call.get("name")
+        args = call.get("args")
+        call_id = call.get("id")
+        calls.append(
+            (
+                name if isinstance(name, str) else "",
+                args if isinstance(args, dict) else {},
+                call_id if isinstance(call_id, str) else None,
+            )
+        )
+    return calls
+
+
 class GeminiDriver:
     """Asks a Gemini model for the next action. The client is injected, the model is a parameter.
 
@@ -278,12 +315,17 @@ class GeminiDriver:
         self._pending: list[tuple[str, str | None]] = []
 
     def propose(self, observation: Observation) -> Proposal:
-        """Send the History and the declarations once. Reply mapping comes in task 3.3."""
+        """Send the History and the declarations once, and map the first Function_Call."""
         if not self._history:
             text = f"Task: {observation.task}\nYou are in {observation.place}."
             self._history.append({"role": "user", "parts": [{"text": text}]})
-        self._client.generate_content(self._model, self._body(observation))
-        return Proposal(FINISH_ACTION, {})
+        reply = self._client.generate_content(self._model, self._body(observation))
+        calls = _function_calls(_reply_parts(reply))
+        self._pending = [(name, call_id) for name, _, call_id in calls]
+        if not calls:
+            return Proposal(FINISH_ACTION, {})
+        name, args, _ = calls[0]
+        return _to_proposal(name, args)
 
     def _body(self, observation: Observation) -> dict[str, object]:
         return {
