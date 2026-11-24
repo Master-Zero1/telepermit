@@ -435,3 +435,18 @@ def test_llm_imports_are_stdlib_drivers_or_anthropic() -> None:
     Validates: Requirements 6.13.4
     """
     assert check_llm_imports(LLM_MODULE.read_text(encoding="utf-8"), "drivers/llm.py") == []
+
+
+# Spec 6 addition (task 8.1): the factory must hold the urllib import that the confinement test
+# above allows, so the confinement test cannot pass vacuously.
+def test_gemini_factory_holds_a_urllib_import() -> None:
+    """build_gemini_client in drivers/llm.py holds at least one urllib import.
+
+    Validates: Requirements 6.6.1, 6.12.3
+    """
+    hits = [
+        hit
+        for hit in check_urllib_imports(LLM_MODULE.read_text(encoding="utf-8"), "drivers/llm.py")
+        if hit.function == URLLIB_FACTORY
+    ]
+    assert hits, "no urllib import inside build_gemini_client in drivers/llm.py"
