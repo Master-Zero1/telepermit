@@ -4,7 +4,8 @@ Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Pr
 validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.3 validates
 Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.4 validates
 Requirements 6.4.7 and 6.4.11. Property P6.5 validates Requirement 6.4.8. Property P6.6
-validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.13 validates Requirement 6.5.2.
+validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.12 validates Requirements 6.9.1 to
+6.9.3, 6.9.5, 6.9.7 to 6.9.12 and 6.13.5. Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -18,20 +19,28 @@ import hashlib
 import json
 import socket
 from collections.abc import Callable, Iterator, Mapping
+from types import SimpleNamespace
 
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
+from telepermit.audit import RUN_STARTED, permit_json
 from telepermit.drivers import FINISH_ACTION, GO_PREFIX
 from telepermit.drivers.base import Observation, Proposal
-from telepermit.drivers.llm import SYSTEM_PROMPT, GeminiDriver
+from telepermit.drivers.llm import SYSTEM_PROMPT, GeminiDriver, LLMDriver
+from telepermit.engine import HARNESS_CAP
 from telepermit.scenarios.poisoned_briefing import (
     DEMO_SEED,
     EXPORT_DESTINATION,
+    HOME_PERMIT,
     LIBRARY,
+    LIBRARY_CEILING,
+    SCENARIO_NAME,
     TASK,
     VAULT,
+    VAULT_CEILING,
+    replay_meta,
     run_scenario,
 )
 from telepermit.tools import (
@@ -815,3 +824,182 @@ def test_p6_5_requests_and_history_are_isolated_copies(
         assert SENTINEL not in text
     for body, mutated in client.kept:
         assert body == mutated
+
+
+GENERATOR = "some-generator"
+ANTHROPIC_FINISH_REPLY = SimpleNamespace(
+    content=[SimpleNamespace(type="tool_use", id="t1", name=FINISH_ACTION, input={})]
+)
+VARIANT_KWARGS: dict[str, dict[str, bool]] = {
+    "enforced": {"enforce": True},
+    "unenforced": {"enforce": False},
+    "forged": {"enforce": True, "forged": True},
+}
+BASE_IDENTITIES = {
+    "enforced": ("poisoned-briefing-enforced", "Poisoned briefing: limits enforced"),
+    "unenforced": ("poisoned-briefing-unenforced", "Poisoned briefing: no enforcement"),
+    "forged": ("forged-identity-refused", "Forged identity refused at the border"),
+}
+PROVIDER_TITLE_NAMES = {"gemini": "Gemini", "anthropic": "Anthropic"}
+DRIVER_KINDS = ("scripted", "llm", "gemini", "anthropic")
+KIND_LABELS: dict[str, tuple[str, str | None]] = {
+    "scripted": ("scripted", None),
+    "llm": ("llm", None),
+    "gemini": ("llm", "gemini"),
+    "anthropic": ("llm", "anthropic"),
+}
+IDENTITY_KEYS = {"id", "title", "driver", "provider"}
+
+
+class FakeAnthropicClient:
+    """A stand-in for the Anthropic client: records requests and returns one reply."""
+
+    def __init__(self, reply: SimpleNamespace) -> None:
+        self.messages = self
+        self.calls: list[dict[str, object]] = []
+        self._reply = reply
+
+    def create(self, **kwargs: object) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        return self._reply
+
+
+class ScriptedFinisher:
+    """A scripted-labelled stand-in that finishes at once."""
+
+    label = "scripted"
+
+    def propose(self, observation: Observation) -> Proposal:
+        return Proposal(FINISH_ACTION, {})
+
+
+class LlmFinisher:
+    """An llm-labelled stand-in with no provider that finishes at once."""
+
+    label = "llm"
+
+    def propose(self, observation: Observation) -> Proposal:
+        return Proposal(FINISH_ACTION, {})
+
+
+class GeminiFinisher(LlmFinisher):
+    """An llm-labelled stand-in with provider gemini."""
+
+    provider = "gemini"
+
+
+class AnthropicFinisher(LlmFinisher):
+    """An llm-labelled stand-in with provider anthropic."""
+
+    provider = "anthropic"
+
+
+def build_driver(
+    kind: str, real: bool, gemini_script: list[dict[str, object]]
+) -> ScriptedFinisher | LlmFinisher | GeminiDriver | LLMDriver:
+    """A stand-in for the kind, or the real driver with a fake client for gemini and anthropic."""
+    if kind == "scripted":
+        return ScriptedFinisher()
+    if kind == "llm":
+        return LlmFinisher()
+    if kind == "gemini":
+        if real:
+            client = FakeGeminiClient(*copy.deepcopy(gemini_script), FINISH_REPLY)
+            return GeminiDriver(client, MODEL)
+        return GeminiFinisher()
+    if real:
+        return LLMDriver(FakeAnthropicClient(ANTHROPIC_FINISH_REPLY), MODEL)
+    return AnthropicFinisher()
+
+
+def expected_identity(variant: str, label: str, provider: str | None) -> tuple[str, str]:
+    """Independent model of the design table: id and title from the variant, label, provider."""
+    base_id, base_title = BASE_IDENTITIES[variant]
+    if label == "scripted":
+        return base_id, f"{base_title} (scripted)"
+    if provider is None:
+        return f"{base_id}-llm", f"{base_title} (live LLM)"
+    return f"{base_id}-{provider}", f"{base_title} ({PROVIDER_TITLE_NAMES[provider]} live LLM)"
+
+
+def expected_common_meta(enforce: bool) -> dict[str, object]:
+    """The Baseline_Commit meta fields that no driver kind may change, written out."""
+    return {
+        "scenario": SCENARIO_NAME,
+        "enforce": enforce,
+        "harness_cap": HARNESS_CAP,
+        "task": TASK,
+        "home_permit": permit_json(HOME_PERMIT),
+        "ceilings": {
+            "library": permit_json(LIBRARY_CEILING),
+            "vault": permit_json(VAULT_CEILING),
+        },
+        "tool_costs": {
+            READ_DOCUMENT: 1,
+            SEARCH_ARCHIVE: 5,
+            READ_RECORDS: 3,
+            EXPORT_RECORDS: 20,
+        },
+        "document_text": BRIEFING_Q3_TEXT,
+        "generated_by": GENERATOR,
+    }
+
+
+# Feature: gemini-driver, Property P6.12: Replay ids, titles and provider fields follow the provider
+@given(
+    variant=st.sampled_from(tuple(VARIANT_KWARGS)),
+    real_gemini=st.booleans(),
+    real_anthropic=st.booleans(),
+    gemini_script=st.lists(gemini_replies, max_size=5),
+)
+def test_p6_12_replay_ids_titles_and_provider_follow_the_provider(
+    variant: str,
+    real_gemini: bool,
+    real_anthropic: bool,
+    gemini_script: list[dict[str, object]],
+) -> None:
+    """Property P6.12: for any run variant (enforced, unenforced, forged) and the four driver
+    kinds scripted, llm without provider, llm with provider gemini and llm with provider anthropic
+    (stand-ins that finish at once, or the real GeminiDriver and LLMDriver with fake clients),
+    run_scenario then replay_meta gives RUN_STARTED.data.driver == meta["driver"] == the label,
+    never scripted for a Gemini run; the id and title follow the design table; provider is present
+    exactly when the label is llm and a provider is set, and then equals it; every other meta field
+    equals the Baseline_Commit value; and the four kinds give four distinct ids and titles.
+    Validates: 6.9.1, 6.9.2, 6.9.3, 6.9.5, 6.9.7, 6.9.8, 6.9.9, 6.9.10, 6.9.11, 6.9.12, 6.13.5"""
+    kwargs = VARIANT_KWARGS[variant]
+    real = {"gemini": real_gemini, "anthropic": real_anthropic}
+    ids: list[str] = []
+    titles: list[str] = []
+
+    for kind in DRIVER_KINDS:
+        label, provider = KIND_LABELS[kind]
+        driver = build_driver(kind, real.get(kind, False), gemini_script)
+        run = run_scenario(driver=driver, **kwargs)
+        meta = replay_meta(run, GENERATOR)
+        expected_id, expected_title = expected_identity(variant, label, provider)
+
+        assert meta["id"] == expected_id, f"id is {meta['id']}"
+        assert meta["title"] == expected_title, f"title is {meta['title']}"
+        assert driver.label == label
+        if provider is not None:
+            assert type(driver).provider == provider
+
+        first = run.result.events[0]
+        assert first.type == RUN_STARTED
+        assert first.data["driver"] == meta["driver"] == label
+        if kind == "gemini":
+            assert meta["driver"] != "scripted"
+            assert first.data["driver"] != "scripted"
+
+        if provider is None:
+            assert "provider" not in meta
+        else:
+            assert meta.get("provider") == provider
+        others = {key: value for key, value in meta.items() if key not in IDENTITY_KEYS}
+        assert others == expected_common_meta(kwargs["enforce"])
+
+        ids.append(meta["id"])
+        titles.append(meta["title"])
+
+    assert len(set(ids)) == len(DRIVER_KINDS), f"ids are {ids}"
+    assert len(set(titles)) == len(DRIVER_KINDS), f"titles are {titles}"
