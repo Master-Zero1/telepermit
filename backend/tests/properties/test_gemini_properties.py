@@ -3,8 +3,8 @@
 Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Property P6.2
 validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.3 validates
 Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.4 validates
-Requirements 6.4.7 and 6.4.11. Property P6.6 validates Requirements 6.7.3, 6.11.2 and 6.11.3.
-Property P6.13 validates Requirement 6.5.2.
+Requirements 6.4.7 and 6.4.11. Property P6.5 validates Requirement 6.4.8. Property P6.6
+validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -714,3 +714,104 @@ def test_p6_4_reply_parts_are_echoed_back_verbatim(
     assert len(contents) > 1, "no Model_Turn in the next request"
     assert contents[1] == {"role": "model", "parts": snapshot}
     assert parts == snapshot
+
+
+SENTINEL = "\u2603SENTINEL\u2603"
+
+
+def sentinel_json(value: object) -> str:
+    """JSON text that keeps non-ASCII characters, so the SENTINEL stays searchable."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def mutate_body(body: object) -> None:
+    """Add a SENTINEL part to every turn and a SENTINEL turn, and change the instruction."""
+    if not isinstance(body, dict):
+        return
+    contents = body.get("contents")
+    if isinstance(contents, list):
+        for turn in contents:
+            parts = turn.get("parts") if isinstance(turn, dict) else None
+            if isinstance(parts, list):
+                parts.append({"text": SENTINEL})
+        contents.append({"role": "user", "parts": [{"text": SENTINEL}]})
+    instruction = body.get("systemInstruction")
+    if isinstance(instruction, dict):
+        parts = instruction.get("parts")
+        if isinstance(parts, list):
+            for part in parts:
+                if isinstance(part, dict):
+                    part["text"] = SENTINEL
+            parts.append({"text": SENTINEL})
+        instruction[SENTINEL] = SENTINEL
+
+
+def mutate_reply(reply: object) -> None:
+    """Add a SENTINEL part to the parts list of every candidate that has one."""
+    candidates = reply.get("candidates") if isinstance(reply, dict) else None
+    if not isinstance(candidates, list):
+        return
+    for candidate in candidates:
+        content = candidate.get("content") if isinstance(candidate, dict) else None
+        parts = content.get("parts") if isinstance(content, dict) else None
+        if isinstance(parts, list):
+            parts.append({"text": SENTINEL})
+
+
+class MutatingGeminiClient:
+    """Snapshots each body, mutates the received body, and later mutates the reply it returned."""
+
+    def __init__(self, *replies: Mapping[str, object]) -> None:
+        self._replies = list(replies)
+        self._returned: Mapping[str, object] | None = None
+        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.snapshot_texts: list[str] = []
+        self.kept: list[tuple[Mapping[str, object], dict[str, object]]] = []
+
+    def generate_content(self, model: str, body: Mapping[str, object]) -> Mapping[str, object]:
+        snapshot = copy.deepcopy(dict(body))
+        self.calls.append((model, snapshot))
+        self.snapshot_texts.append(sentinel_json(snapshot))
+        mutate_body(body)
+        self.kept.append((body, copy.deepcopy(dict(body))))
+        self._returned = self._replies.pop(0)
+        return self._returned
+
+    def mutate_returned_reply(self) -> None:
+        """Called once the driver's propose has returned, so the driver has read the reply."""
+        mutate_reply(self._returned)
+
+
+# Feature: gemini-driver, Property P6.5: Requests and History are isolated copies
+@given(turns=st.lists(mapping_turns(), min_size=1, max_size=6))
+def test_p6_5_requests_and_history_are_isolated_copies(
+    turns: list[tuple[Observation, dict[str, object]]],
+) -> None:
+    """Property P6.5: for any run of 1 to 6 turns with the P6.2 generators and a Fake_Client that
+    snapshots each body, then mutates the received body (a SENTINEL part in every turn, a SENTINEL
+    turn in contents, a changed systemInstruction) and, after propose returns, the reply it returned
+    (a SENTINEL part in its parts), no later request contains any of the client's mutations, every
+    snapshot still serialises to the same SENTINEL-free text it had at call time, and the driver's
+    later turns never change a body the client already received beyond the client's own mutations.
+    Validates: 6.4.8"""
+    inputs = [[obs.task, obs.place, obs.last_result, obs.tools, reply] for obs, reply in turns]
+    assume(SENTINEL not in sentinel_json(inputs))
+
+    client = MutatingGeminiClient(*(copy.deepcopy(reply) for _, reply in turns))
+    driver = GeminiDriver(client, MODEL)
+
+    for index, (observation, _) in enumerate(turns):
+        driver.propose(observation)
+        client.mutate_returned_reply()
+        assert len(client.calls) == index + 1
+        model, snapshot = client.calls[index]
+        assert model == MODEL
+        assert SENTINEL not in sentinel_json(snapshot), (
+            f"request {index + 1} contains the client's mutation"
+        )
+
+    for (_, snapshot), text in zip(client.calls, client.snapshot_texts, strict=True):
+        assert sentinel_json(snapshot) == text
+        assert SENTINEL not in text
+    for body, mutated in client.kept:
+        assert body == mutated
