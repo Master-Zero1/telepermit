@@ -5,7 +5,8 @@ validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Proper
 Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.4 validates
 Requirements 6.4.7 and 6.4.11. Property P6.5 validates Requirement 6.4.8. Property P6.6
 validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.9 validates Requirements 6.7.1,
-6.7.2, 6.8.4 to 6.8.6 and 6.10.1 to 6.10.4. Property P6.12 validates Requirements 6.9.1 to 6.9.3,
+6.7.2, 6.8.4 to 6.8.6 and 6.10.1 to 6.10.4. Property P6.10 validates Requirements 6.8.3 and
+6.5.3. Property P6.12 validates Requirements 6.9.1 to 6.9.3,
 6.9.5, 6.9.7 to 6.9.12 and 6.13.5. Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
@@ -1139,3 +1140,92 @@ def test_p6_9_gemini_cli_path_never_prints_or_writes_the_key(
     assert after == before
     line = CLI_ABORTED_LINE if outcome == "run_error" else CLI_FACTORY_LINE
     assert stderr == line.format(error_type.__name__)
+
+
+GEMINI_VARS = ("AGENT_MODEL", "GEMINI_API_KEY")
+ANTHROPIC_VAR = "ANTHROPIC_API_KEY"
+CLI_MISSING_PREFIX = "error: missing environment variable(s) for --driver gemini: "
+NEAR_MISS_NAMES = (
+    "agent_model",
+    "gemini_api_key",
+    "AGENT_MODEL_",
+    "GEMINI_API_KEY2",
+    "GOOGLE_API_KEY",
+    "GEMINI_KEY",
+)
+ENV_NAME_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
+MISSING_CHOICES: tuple[tuple[str, ...], ...] = (("AGENT_MODEL",), ("GEMINI_API_KEY",), GEMINI_VARS)
+
+missing_values = st.one_of(
+    st.none(), st.just(""), st.text(alphabet=WHITESPACE, min_size=1, max_size=8)
+)
+present_values: dict[str, st.SearchStrategy[str]] = {
+    "AGENT_MODEL": cli_models,
+    "GEMINI_API_KEY": api_keys,
+}
+other_env_names = st.one_of(
+    st.sampled_from(NEAR_MISS_NAMES), st.text(alphabet=ENV_NAME_ALPHABET, min_size=1, max_size=12)
+).filter(lambda name: name not in GEMINI_VARS and name != ANTHROPIC_VAR)
+other_env_values = st.text(alphabet=KEY_ALPHABET, min_size=16, max_size=32)
+anthropic_keys = st.text(alphabet=KEY_ALPHABET, min_size=20, max_size=40).map(
+    lambda tail: "sk-ant-" + tail
+)
+
+
+@st.composite
+def missing_variable_envs(draw: st.DrawFn) -> tuple[dict[str, str], tuple[str, ...]]:
+    """An environment where one or both Gemini variables are absent, empty or whitespace-only."""
+    missing = draw(st.sampled_from(MISSING_CHOICES))
+    items = list(draw(st.dictionaries(other_env_names, other_env_values, max_size=5)).items())
+    items.append((ANTHROPIC_VAR, draw(anthropic_keys)))
+    for name in GEMINI_VARS:
+        value = draw(missing_values) if name in missing else draw(present_values[name])
+        if value is not None:
+            items.append((name, value))
+    return dict(draw(st.permutations(items))), missing
+
+
+# Feature: gemini-driver, Property P6.10: Missing variables stop the gemini path before any client exists  # noqa: E501
+@given(
+    case=missing_variable_envs(),
+    enforce=st.sampled_from(("on", "off")),
+    with_out=st.booleans(),
+)
+def test_p6_10_missing_variables_stop_the_gemini_path_before_any_client(
+    case: tuple[dict[str, str], tuple[str, ...]], enforce: str, with_out: bool
+) -> None:
+    """Property P6.10: for any environment where AGENT_MODEL or GEMINI_API_KEY (or both) is
+    absent, empty or whitespace-only, the other possibly holding a valid value, plus random other
+    variables including ANTHROPIC_API_KEY with a value, --driver gemini returns 1 with empty
+    stdout and exactly one stderr line naming exactly the missing variables in the order
+    AGENT_MODEL then GEMINI_API_KEY and holding no variable value; the replaced factory and any
+    client are never called and no --out file is written.
+    Validates: 6.8.3, 6.5.3"""
+    env, missing = case
+    expected = CLI_MISSING_PREFIX + ", ".join(missing) + "\n"
+    shown_values = [value for value in env.values() if value.strip()]
+    assume(not any(value in expected for value in shown_values))
+    client = FakeGeminiClient(FINISH_REPLY)
+    factory = KeyFactory(client, None)
+    argv = ["run", "poisoned_briefing", "--enforce", enforce, "--driver", "gemini"]
+
+    with tempfile.TemporaryDirectory() as directory, pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(cli, "build_gemini_client", factory)
+        root = Path(directory)
+        path = root / "run.json"
+        if with_out:
+            argv += ["--out", str(path)]
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(argv, env=env, out=out, err=err)
+        stdout, stderr = out.getvalue(), err.getvalue()
+        written = files_in(root)
+
+    assert (code, stdout) == (1, "")
+    assert stderr == expected
+    assert len(stderr.splitlines()) == 1
+    assert factory.keys == []
+    assert client.calls == []
+    assert written == {}
+    for value in shown_values:
+        assert value not in stdout
+        assert value not in stderr
