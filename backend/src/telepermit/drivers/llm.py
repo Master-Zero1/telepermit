@@ -154,6 +154,7 @@ class LLMDriver:
     """
 
     label: Final = "llm"
+    provider: Final = PROVIDER_ANTHROPIC
 
     def __init__(self, client: LLMClient, model: str, *, max_tokens: int = MAX_TOKENS) -> None:
         if not model.strip():
