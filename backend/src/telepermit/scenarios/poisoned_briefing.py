@@ -16,6 +16,7 @@ from telepermit.audit import ReplayMeta, permit_json
 from telepermit.clock import TickClock
 from telepermit.drivers import GO_PREFIX
 from telepermit.drivers.base import AgentDriver, Proposal
+from telepermit.drivers.llm import PROVIDER_ANTHROPIC, PROVIDER_GEMINI
 from telepermit.drivers.scripted import ScriptedDriver
 from telepermit.engine import HARNESS_CAP, Engine, RunResult
 from telepermit.identity import Authority, Identity
@@ -55,6 +56,7 @@ REPLAY_ID_FORGED: Final = "forged-identity-refused"
 REPLAY_TITLE_ENFORCED: Final = "Poisoned briefing: limits enforced"
 REPLAY_TITLE_UNENFORCED: Final = "Poisoned briefing: no enforcement"
 REPLAY_TITLE_FORGED: Final = "Forged identity refused at the border"
+PROVIDER_NAMES: Final = {PROVIDER_GEMINI: "Gemini", PROVIDER_ANTHROPIC: "Anthropic"}
 
 _GO_VAULT: Final = f"{GO_PREFIX}{VAULT}"
 _GO_LIBRARY: Final = f"{GO_PREFIX}{LIBRARY}"
@@ -88,6 +90,17 @@ class LabeledDriver(AgentDriver, Protocol):
     label: str
 
 
+class LiveReplayMeta(ReplayMeta, total=False):
+    """ReplayMeta plus the optional provider of a live run.
+
+    `provider` is an optional replay format addition, absent on scripted replays and on llm runs
+    whose driver names no provider. It is pending an owner-applied amendment to CONTRACTS
+    section 9.
+    """
+
+    provider: str
+
+
 @dataclass(frozen=True, slots=True)
 class World:
     """A fresh world for one run. The outbox accessor stays next to the vault Place."""
@@ -108,6 +121,7 @@ class ScenarioRun:
     forged: bool
     driver_label: str
     max_turns: int
+    provider: str | None = None
 
 
 def build_world(forged: bool = False) -> World:
@@ -135,6 +149,18 @@ def _label_of(driver: object) -> str:
     return label
 
 
+def _provider_of(driver: object, label: str) -> str | None:
+    """None for a scripted driver; for an llm driver its optional provider, which must be known."""
+    if label != "llm":
+        return None
+    provider = getattr(driver, "provider", None)
+    if provider is not None and provider not in PROVIDER_NAMES:
+        raise ValueError(
+            f"invalid driver provider {provider!r}, expected one of {sorted(PROVIDER_NAMES)}"
+        )
+    return provider
+
+
 def run_scenario(
     *,
     enforce: bool,
@@ -151,6 +177,7 @@ def run_scenario(
         raise ValueError("the forged-identity run is defined for enforcement on only")
     chosen = ScriptedDriver(SCRIPT) if driver is None else driver
     label = _label_of(chosen)
+    provider = _provider_of(chosen, label)
     world = build_world(forged)
     engine = Engine(
         world.places,
@@ -164,7 +191,7 @@ def run_scenario(
         task=TASK,
     )
     result = engine.run(chosen, TASK, max_turns)
-    return ScenarioRun(result, world.outbox(), enforce, forged, label, max_turns)
+    return ScenarioRun(result, world.outbox(), enforce, forged, label, max_turns, provider)
 
 
 def replay_identity(run: ScenarioRun) -> tuple[str, str]:
@@ -175,15 +202,21 @@ def replay_identity(run: ScenarioRun) -> tuple[str, str]:
         base_id, base_title = REPLAY_ID_ENFORCED, REPLAY_TITLE_ENFORCED
     else:
         base_id, base_title = REPLAY_ID_UNENFORCED, REPLAY_TITLE_UNENFORCED
+    if run.driver_label == "llm" and run.provider is not None:
+        name = PROVIDER_NAMES[run.provider]
+        return f"{base_id}-{run.provider}", f"{base_title} ({name} live LLM)"
     if run.driver_label == "llm":
         return f"{base_id}-llm", f"{base_title} (live LLM)"
     return base_id, f"{base_title} (scripted)"
 
 
-def replay_meta(run: ScenarioRun, generated_by: str) -> ReplayMeta:
-    """The meta block of the replay of this run (CONTRACTS section 9)."""
+def replay_meta(run: ScenarioRun, generated_by: str) -> LiveReplayMeta:
+    """The meta block of the replay of this run (CONTRACTS section 9).
+
+    "provider" is added only for an llm run whose driver names a provider (see LiveReplayMeta).
+    """
     replay_id, title = replay_identity(run)
-    return {
+    meta: LiveReplayMeta = {
         "id": replay_id,
         "title": title,
         "scenario": SCENARIO_NAME,
@@ -200,3 +233,6 @@ def replay_meta(run: ScenarioRun, generated_by: str) -> ReplayMeta:
         "document_text": BRIEFING_Q3_TEXT,
         "generated_by": generated_by,
     }
+    if run.driver_label == "llm" and run.provider is not None:
+        meta["provider"] = run.provider
+    return meta
