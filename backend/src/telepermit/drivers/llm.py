@@ -130,6 +130,14 @@ def _tools(observation: Observation) -> list[dict[str, object]]:
     return place_tools
 
 
+def _first_text(observation: Observation) -> str:
+    return f"Task: {observation.task}\nYou are in {observation.place}."
+
+
+def _now_in_text(observation: Observation) -> str:
+    return f"You are now in {observation.place}."
+
+
 def _to_proposal(name: str, payload: dict[str, object]) -> Proposal:
     if name == GO_TOOL:
         place = payload.get("place")
@@ -171,10 +179,7 @@ class LLMDriver:
 
     def _user_message(self, observation: Observation) -> dict[str, object]:
         content: list[dict[str, object]] = []
-        if not self._history:
-            where = f"Task: {observation.task}\nYou are in {observation.place}."
-        else:
-            where = f"You are now in {observation.place}."
+        where = _now_in_text(observation) if self._history else _first_text(observation)
         for index, tool_use_id in enumerate(self._pending):
             result = (observation.last_result or "") if index == 0 else _NOT_EXECUTED
             content.append({"type": "tool_result", "tool_use_id": tool_use_id, "content": result})
@@ -297,6 +302,15 @@ def _function_calls(parts: list[object]) -> list[tuple[str, dict[str, object], s
     return calls
 
 
+def _function_response(name: str, call_id: str | None, text: str) -> dict[str, object]:
+    """The functionResponse value; `id` is present only when the call had one."""
+    response: dict[str, object] = {"name": name}
+    if call_id is not None:
+        response["id"] = call_id
+    response["response"] = {_RESULT_KEY: text}
+    return response
+
+
 class GeminiDriver:
     """Asks a Gemini model for the next action. The client is injected, the model is a parameter.
 
@@ -316,20 +330,38 @@ class GeminiDriver:
 
     def propose(self, observation: Observation) -> Proposal:
         """Send the History and the declarations once, and map the first Function_Call."""
-        if not self._history:
-            text = f"Task: {observation.task}\nYou are in {observation.place}."
-            self._history.append({"role": "user", "parts": [{"text": text}]})
+        self._add_user_parts(observation)
         reply = self._client.generate_content(self._model, self._body(observation))
-        calls = _function_calls(_reply_parts(reply))
+        parts = _reply_parts(reply)
+        if parts:
+            self._history.append({"role": "model", "parts": copy.deepcopy(parts)})
+        calls = _function_calls(parts)
         self._pending = [(name, call_id) for name, _, call_id in calls]
         if not calls:
             return Proposal(FINISH_ACTION, {})
         name, args, _ = calls[0]
         return _to_proposal(name, args)
 
+    def _add_user_parts(self, observation: Observation) -> None:
+        """Add the User_Turn parts; merge into the last User_Turn after an empty reply."""
+        if not self._history:
+            self._history.append({"role": "user", "parts": [{"text": _first_text(observation)}]})
+            return
+        new_parts: list[object] = []
+        for index, (name, call_id) in enumerate(self._pending):
+            text = (observation.last_result or "") if index == 0 else _NOT_EXECUTED
+            new_parts.append({"functionResponse": _function_response(name, call_id, text)})
+        new_parts.append({"text": _now_in_text(observation)})
+        last = self._history[-1]
+        last_parts = last.get("parts")
+        if last.get("role") == "user" and isinstance(last_parts, list):
+            last_parts.extend(new_parts)
+        else:
+            self._history.append({"role": "user", "parts": new_parts})
+
     def _body(self, observation: Observation) -> dict[str, object]:
         return {
-            "contents": self._history,
+            "contents": copy.deepcopy(self._history),
             "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
             "tools": [{"functionDeclarations": _declarations(observation)}],
             "toolConfig": {"functionCallingConfig": {"mode": _FUNCTION_MODE}},
