@@ -1,7 +1,7 @@
 """The command line interface (CONTRACTS section 10).
 
-Usage: python -m telepermit.cli run poisoned_briefing --enforce on|off [--driver scripted|llm]
-       [--out PATH]
+Usage: python -m telepermit.cli run poisoned_briefing --enforce on|off
+       [--driver scripted|llm|gemini] [--out PATH]
 
 The timeline is the operator's view of the audit log. It may show permits and limits, never keys.
 With --out PATH the run is also written as a replay file (generated_by "telepermit.cli", see
@@ -30,12 +30,16 @@ from telepermit.audit import (
     replay_document,
     write_json,
 )
+from telepermit.drivers.base import AgentDriver
 from telepermit.drivers.llm import (
     ENV_API_KEY,
+    ENV_GEMINI_API_KEY,
     ENV_MODEL,
+    GeminiDriver,
     LLMDriver,
     LLMUnavailableError,
     build_client,
+    build_gemini_client,
 )
 from telepermit.scenarios.poisoned_briefing import (
     GENERATED_BY_CLI,
@@ -59,7 +63,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="run a scenario and print its timeline")
     run.add_argument("scenario", choices=[SCENARIO_NAME])
     run.add_argument("--enforce", required=True, choices=["on", "off"])
-    run.add_argument("--driver", choices=["scripted", "llm"], default="scripted")
+    run.add_argument("--driver", choices=["scripted", "llm", "gemini"], default="scripted")
     run.add_argument("--out", type=Path, default=None, metavar="PATH")
     return parser
 
@@ -134,6 +138,18 @@ def _report(run: ScenarioRun, out_path: Path | None, stdout: TextIO, stderr: Tex
     return _write_replay(run, out_path, stdout, stderr)
 
 
+def _run_live(
+    enforce: bool, driver: AgentDriver, out_path: Path | None, stdout: TextIO, stderr: TextIO
+) -> int:
+    try:
+        run = run_scenario(enforce=enforce, driver=driver)
+    except Exception as exc:
+        # Only the type name is printed: SDK messages may contain the API key.
+        print(f"error: run aborted: {type(exc).__name__} (details withheld; see docs)", file=stderr)
+        return EXIT_PROBLEM
+    return _report(run, out_path, stdout, stderr)
+
+
 def _run_llm(
     enforce: bool, env: Mapping[str, str], out_path: Path | None, stdout: TextIO, stderr: TextIO
 ) -> int:
@@ -148,13 +164,28 @@ def _run_llm(
         print(f"error: {exc}", file=stderr)
         return EXIT_PROBLEM
     driver = LLMDriver(client, env[ENV_MODEL].strip())
-    try:
-        run = run_scenario(enforce=enforce, driver=driver)
-    except Exception as exc:
-        # Only the type name is printed: SDK messages may contain the API key.
-        print(f"error: run aborted: {type(exc).__name__} (details withheld; see docs)", file=stderr)
+    return _run_live(enforce, driver, out_path, stdout, stderr)
+
+
+def _run_gemini(
+    enforce: bool, env: Mapping[str, str], out_path: Path | None, stdout: TextIO, stderr: TextIO
+) -> int:
+    model = env.get(ENV_MODEL, "").strip()
+    api_key = env.get(ENV_GEMINI_API_KEY, "").strip()
+    values = ((ENV_MODEL, model), (ENV_GEMINI_API_KEY, api_key))
+    missing = [name for name, value in values if not value]
+    if missing:
+        names = ", ".join(missing)
+        print(f"error: missing environment variable(s) for --driver gemini: {names}", file=stderr)
         return EXIT_PROBLEM
-    return _report(run, out_path, stdout, stderr)
+    try:
+        client = build_gemini_client(api_key)
+    except Exception as exc:
+        # Only the type name is printed: the message may contain the API key.
+        print(f"error: {type(exc).__name__} while building the Gemini client", file=stderr)
+        return EXIT_PROBLEM
+    driver = GeminiDriver(client, model)
+    return _run_live(enforce, driver, out_path, stdout, stderr)
 
 
 def _exit_code(code: object) -> int:
@@ -182,6 +213,8 @@ def main(
     enforce = args.enforce == "on"
     if args.driver == "llm":
         return _run_llm(enforce, environment, args.out, stdout, stderr)
+    if args.driver == "gemini":
+        return _run_gemini(enforce, environment, args.out, stdout, stderr)
     return _report(run_scenario(enforce=enforce), args.out, stdout, stderr)
 
 
