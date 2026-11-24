@@ -1,6 +1,6 @@
 # Progress tracker (the agent updates this file; the human can read it)
 
-Last updated: 2026-11-xx. Phase 0 and Specs 1 to 5 done. Spec 5 merged to main as ac3c325 and tagged spec-05-done (not yet pushed at the time of this entry). Next: Phase 6.
+Last updated: 2026-11-xx. Phase 0 and Specs 1 to 6 done. Spec 6 merged to main as 623f1e2 and tagged spec-06-done (not yet pushed at the time of this entry). Next: Phase 6.
 
 ## Phases
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
@@ -10,7 +10,7 @@ Last updated: 2026-11-xx. Phase 0 and Specs 1 to 5 done. Spec 5 merged to main a
 - [x] Spec 3: engine + metering + kill + audit  folder: .kiro/specs/engine-audit  branch: spec/03-engine-audit (all 14 tasks done, Groups A and B, 210 tests green = 89 baseline + 121, ruff clean; merged to main with --no-ff, tagged spec-03-done, pushed with its tag)
 - [x] Spec 4: scenario + drivers + replays + CLI  folder: .kiro/specs/scenario-drivers-replays  branch: spec/04-scenario-drivers-replays  (MILESTONE M1) (merged to main as 17288b8, tag spec-04-done, 329 tests pass on main against baseline 210; M1 recorded over the enforced and unenforced replays, the forged replay is optional and also recorded; pushed to origin with spec-04-done and m1-core; the LLM mapping has not been run against the live service)
 - [x] Spec 5: timeline UI                  folder: .kiro/specs/timeline-ui  branch: spec/05-timeline-ui (all 13 tasks done plus two owner-approved FIXes; frontend vitest baseline 1, final suite owner-reported green with 201 tests expected in 18 files; build green; merged to main with --no-ff as ac3c325, tagged spec-05-done; owner did the manual browser check)
-- [ ] Spec 6 (add-on): Gemini live driver  folder: .kiro/specs/gemini-driver  branch: spec/06-gemini-driver (all tasks done, 441 tests green (329 baseline + 112), ruff clean; not merged; CONTRACTS sections 9 and 10 amendments pending (owner); first live Gemini run not done)
+- [x] Spec 6 (add-on): Gemini live driver  folder: .kiro/specs/gemini-driver  branch: spec/06-gemini-driver (all tasks done, 441 tests green on main (329 baseline + 112), ruff clean; merged to main with --no-ff as 623f1e2, tagged spec-06-done, not pushed; CONTRACTS sections 9 and 10 amended by the owner in f597ae2; first live Gemini run not done)
 - [ ] Phase 6: CI, deploy, README, architecture, threat model
 - [ ] Phase 7: submission assets (video, write-up, blog, social, Devpost form)
 - [ ] FREEZE declared (target Dec 1)
@@ -36,7 +36,7 @@ Spec 1 (permit-identity): [x] 1 T1.1 Permit | [x] 2 T1.2 narrowed_by | [x] 3 T1.
 - 2026-11-xx (owner approved, Spec 5): new colour --row-dim #c98500 for dimmed text and strikethrough (--amber-dim fails 4.5:1); text on any tinted row is --amber, event colour only in marker and left border; control states use an outline and a text marker, no tint; docs/UI_BRIEF.md updated to match.
 - 2026-11-xx (owner approved, Spec 5): badge text 'ADMITTED UNDER IMPOSED PERMIT'; RunPanel, StatusLine and PlaybackBar built in task 10 (CompareView imports them); task 11 added announce.ts (Playing, Paused, End of replay) and one live region per mode; the static URL guard scans shipped files only.
 - 2026-11-xx (owner approved, Spec 6): the Gemini driver lives inside drivers/llm.py; no new module, no tech.md or structure.md edit.
-- 2026-11-xx (owner approved, Spec 6): provider labelling. Live replay ids are `<Base_Id>-<provider>`, titles `<Base_Title> (<Provider_Name> live LLM)`, and meta.provider is "gemini" or "anthropic" (absent on scripted replays); meta.driver stays "llm". Behaviour change on `--driver llm`: Anthropic replays now get id `<base>-anthropic`, title `(Anthropic live LLM)` and meta.provider "anthropic". Pending the owner's CONTRACTS section 9 amendment; section 10 amendment (`--driver scripted|llm|gemini`, gemini needs GEMINI_API_KEY and AGENT_MODEL) also pending.
+- 2026-11-xx (owner approved, Spec 6): provider labelling. Live replay ids are `<Base_Id>-<provider>`, titles `<Base_Title> (<Provider_Name> live LLM)`, and meta.provider is "gemini" or "anthropic" (absent on scripted replays); meta.driver stays "llm". Behaviour change on `--driver llm`: Anthropic replays now get id `<base>-anthropic`, title `(Anthropic live LLM)` and meta.provider "anthropic". CONTRACTS sections 9 and 10 amended by the owner in f597ae2 (section 10: `--driver scripted|llm|gemini`, gemini needs GEMINI_API_KEY and AGENT_MODEL).
 - 2026-11-xx (owner approved, Spec 6, 6.13.6): tests/unit/test_cli.py assertions updated in task 6.3 (2 changed, 1 added) for the new provider labels.
 - 2026-11-xx (owner approved, Spec 6, 6.4.10): the history merge rule never produces consecutive user turns.
 - 2026-11-xx (owner approved, Spec 6, 6.6.9): the real Gemini client blocks redirects.
