@@ -351,9 +351,10 @@ def test_llm_out_replay_is_labelled_llm(tmp_path: Path, monkeypatch: pytest.Monk
     document = read_json(path)
     meta = document["meta"]
     assert isinstance(meta, dict)
-    assert meta["id"] == "poisoned-briefing-enforced-llm"
-    assert str(meta["title"]).endswith("(live LLM)")
+    assert meta["id"] == "poisoned-briefing-enforced-anthropic"
+    assert str(meta["title"]).endswith("(Anthropic live LLM)")
     assert meta["driver"] == "llm"
+    assert meta["provider"] == "anthropic"
     assert meta["generated_by"] == "telepermit.cli"
     assert document["events"][0]["data"]["driver"] == "llm"  # type: ignore[index]
 
