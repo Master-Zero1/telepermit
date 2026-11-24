@@ -1,6 +1,6 @@
 # Progress tracker (the agent updates this file; the human can read it)
 
-Last updated: 2026-11-xx. Phase 0 and Specs 1 to 6 done. Spec 6 merged to main as 623f1e2 and tagged spec-06-done (not yet pushed at the time of this entry). Next: Phase 6.
+Last updated: 2026-11-xx. Phase 0 and Specs 1 to 6 done. Spec 6 merged to main as 623f1e2, tagged spec-06-done, pushed to origin with its tag (main at 503a483). Next: Phase 6.
 
 ## Phases
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
@@ -10,7 +10,7 @@ Last updated: 2026-11-xx. Phase 0 and Specs 1 to 6 done. Spec 6 merged to main a
 - [x] Spec 3: engine + metering + kill + audit  folder: .kiro/specs/engine-audit  branch: spec/03-engine-audit (all 14 tasks done, Groups A and B, 210 tests green = 89 baseline + 121, ruff clean; merged to main with --no-ff, tagged spec-03-done, pushed with its tag)
 - [x] Spec 4: scenario + drivers + replays + CLI  folder: .kiro/specs/scenario-drivers-replays  branch: spec/04-scenario-drivers-replays  (MILESTONE M1) (merged to main as 17288b8, tag spec-04-done, 329 tests pass on main against baseline 210; M1 recorded over the enforced and unenforced replays, the forged replay is optional and also recorded; pushed to origin with spec-04-done and m1-core; the LLM mapping has not been run against the live service)
 - [x] Spec 5: timeline UI                  folder: .kiro/specs/timeline-ui  branch: spec/05-timeline-ui (all 13 tasks done plus two owner-approved FIXes; frontend vitest baseline 1, final suite owner-reported green with 201 tests expected in 18 files; build green; merged to main with --no-ff as ac3c325, tagged spec-05-done; owner did the manual browser check)
-- [x] Spec 6 (add-on): Gemini live driver  folder: .kiro/specs/gemini-driver  branch: spec/06-gemini-driver (all tasks done, 441 tests green on main (329 baseline + 112), ruff clean; merged to main with --no-ff as 623f1e2, tagged spec-06-done, not pushed; CONTRACTS sections 9 and 10 amended by the owner in f597ae2; first live Gemini run not done)
+- [x] Spec 6 (add-on): Gemini live driver  folder: .kiro/specs/gemini-driver  branch: spec/06-gemini-driver (all tasks done, 441 tests green on main (329 baseline + 112), ruff clean; merged to main with --no-ff as 623f1e2, tagged spec-06-done, pushed with its tag; CONTRACTS sections 9 and 10 amended by the owner in f597ae2; first live Gemini run not done)
 - [ ] Phase 6: CI, deploy, README, architecture, threat model
 - [ ] Phase 7: submission assets (video, write-up, blog, social, Devpost form)
 - [ ] FREEZE declared (target Dec 1)
