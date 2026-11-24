@@ -6,8 +6,9 @@ Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.4 val
 Requirements 6.4.7 and 6.4.11. Property P6.5 validates Requirement 6.4.8. Property P6.6
 validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.9 validates Requirements 6.7.1,
 6.7.2, 6.8.4 to 6.8.6 and 6.10.1 to 6.10.4. Property P6.10 validates Requirements 6.8.3 and
-6.5.3. Property P6.12 validates Requirements 6.9.1 to 6.9.3,
-6.9.5, 6.9.7 to 6.9.12 and 6.13.5. Property P6.13 validates Requirement 6.5.2.
+6.5.3. Property P6.11 validates Requirements 6.5.3, 6.5.4, 6.7.6 and 6.8.2. Property P6.12
+validates Requirements 6.9.1 to 6.9.3, 6.9.5, 6.9.7 to 6.9.12 and 6.13.5. Property P6.13
+validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -1229,3 +1230,81 @@ def test_p6_10_missing_variables_stop_the_gemini_path_before_any_client(
     for value in shown_values:
         assert value not in stdout
         assert value not in stderr
+
+
+PADDING = " \t\n"
+paddings = st.text(alphabet=PADDING, max_size=4)
+
+
+class ReadRecordingEnv(Mapping[str, str]):
+    """An environment that records every key read; iterating counts as reading every key."""
+
+    def __init__(self, values: Mapping[str, str]) -> None:
+        self._values = dict(values)
+        self.reads: list[str] = []
+
+    def __getitem__(self, key: str) -> str:
+        self.reads.append(key)
+        return self._values[key]
+
+    def get(self, key: str, default: object = None) -> object:
+        self.reads.append(key)
+        return self._values.get(key, default)
+
+    def __contains__(self, key: object) -> bool:
+        self.reads.append(str(key))
+        return key in self._values
+
+    def __iter__(self) -> Iterator[str]:
+        self.reads.extend(self._values)
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+
+@st.composite
+def padded_gemini_envs(draw: st.DrawFn) -> tuple[dict[str, str], str, str]:
+    """Model and key cores wrapped in random whitespace, plus other variables in random order."""
+    model, key = draw(cli_models), draw(api_keys)
+    items = list(draw(st.dictionaries(other_env_names, other_env_values, max_size=5)).items())
+    items.append((ANTHROPIC_VAR, draw(anthropic_keys)))
+    items.append(("AGENT_MODEL", draw(paddings) + model + draw(paddings)))
+    items.append(("GEMINI_API_KEY", draw(paddings) + key + draw(paddings)))
+    return dict(draw(st.permutations(items))), model, key
+
+
+# Feature: gemini-driver, Property P6.11: The CLI passes stripped values and reads only its own
+# variables
+@given(case=padded_gemini_envs(), enforce=st.sampled_from(("on", "off")))
+def test_p6_11_cli_passes_stripped_values_and_reads_only_its_own_variables(
+    case: tuple[dict[str, str], str, str], enforce: str
+) -> None:
+    """Property P6.11: for any non-blank model and key wrapped in random leading and trailing
+    spaces, tabs and newlines, in an environment that records every key read and also holds other
+    variables including ANTHROPIC_API_KEY, --driver gemini exits 0, calls the replaced factory
+    exactly once with the stripped key, runs the scenario once with every Fake_Client call getting
+    the stripped model, reads only keys in {AGENT_MODEL, GEMINI_API_KEY}, and no request body built
+    from the Observations contains the key.
+    Validates: 6.5.3, 6.5.4, 6.7.6, 6.8.2"""
+    values, model, key = case
+    env = ReadRecordingEnv(values)
+    client = FakeGeminiClient(FINISH_REPLY)
+    factory = KeyFactory(client, None)
+    argv = ["run", "poisoned_briefing", "--enforce", enforce, "--driver", "gemini"]
+
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(cli, "build_gemini_client", factory)
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(argv, env=env, out=out, err=err)
+        stdout, stderr = out.getvalue(), err.getvalue()
+
+    assert (code, stderr) == (0, "")
+    assert factory.keys == [key]
+    assert len(client.calls) == 1
+    assert [called_model for called_model, _ in client.calls] == [model]
+    assert sum(line.startswith("status: ") for line in stdout.splitlines()) == 1
+    assert ANTHROPIC_VAR not in env.reads
+    assert set(env.reads) <= set(GEMINI_VARS), f"env keys read: {sorted(set(env.reads))}"
+    for _, body in client.calls:
+        assert key not in json.dumps(body)
