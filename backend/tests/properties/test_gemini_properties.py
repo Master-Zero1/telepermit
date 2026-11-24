@@ -4,8 +4,9 @@ Spec 6 (gemini-driver). Property P6.1 validates Requirements 6.1.1 to 6.1.10. Pr
 validates Requirements 6.2.1 to 6.2.5, 6.3.1 to 6.3.5, 6.11.4 and 6.12.4. Property P6.3 validates
 Requirements 6.4.1 to 6.4.6, 6.4.9, 6.4.10, 6.1.10 and 6.12.5. Property P6.4 validates
 Requirements 6.4.7 and 6.4.11. Property P6.5 validates Requirement 6.4.8. Property P6.6
-validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.12 validates Requirements 6.9.1 to
-6.9.3, 6.9.5, 6.9.7 to 6.9.12 and 6.13.5. Property P6.13 validates Requirement 6.5.2.
+validates Requirements 6.7.3, 6.11.2 and 6.11.3. Property P6.9 validates Requirements 6.7.1,
+6.7.2, 6.8.4 to 6.8.6 and 6.10.1 to 6.10.4. Property P6.12 validates Requirements 6.9.1 to 6.9.3,
+6.9.5, 6.9.7 to 6.9.12 and 6.13.5. Property P6.13 validates Requirement 6.5.2.
 
 The network guard is module-scoped: it installs the socket blockers once for the whole module
 through `pytest.MonkeyPatch.context()`, so Hypothesis never sees a function-scoped fixture and no
@@ -16,15 +17,19 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import socket
+import tempfile
 from collections.abc import Callable, Iterator, Mapping
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
+import telepermit.cli as cli
 from telepermit.audit import RUN_STARTED, permit_json
 from telepermit.drivers import FINISH_ACTION, GO_PREFIX
 from telepermit.drivers.base import Observation, Proposal
@@ -1003,3 +1008,134 @@ def test_p6_12_replay_ids_titles_and_provider_follow_the_provider(
 
     assert len(set(ids)) == len(DRIVER_KINDS), f"ids are {ids}"
     assert len(set(titles)) == len(DRIVER_KINDS), f"titles are {titles}"
+
+
+CLI_OUT_MODES = ("absent", "new", "existing")
+CLI_OUTCOMES = ("final", "run_error", "factory_error")
+CLI_PREVIOUS_BYTES = b"previous replay, must stay\n"
+CLI_ABORTED_LINE = "error: run aborted: {} (details withheld; see docs)\n"
+CLI_FACTORY_LINE = "error: {} while building the Gemini client\n"
+
+
+class KeyLeakError(Exception):
+    """A provider-style error whose message holds the API key."""
+
+
+CLI_ERROR_TYPES: tuple[type[Exception], ...] = (
+    KeyLeakError,
+    RuntimeError,
+    ValueError,
+    OSError,
+    TimeoutError,
+)
+cli_models = st.text(alphabet=KEY_ALPHABET + ".:/", max_size=16).map(lambda tail: "fake-" + tail)
+
+
+class RaisingGeminiClient(FakeGeminiClient):
+    """Records `(model, deep copy of body)` per call, then raises the prepared error."""
+
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self._error = error
+
+    def generate_content(self, model: str, body: Mapping[str, object]) -> Mapping[str, object]:
+        self.calls.append((model, copy.deepcopy(dict(body))))
+        raise self._error
+
+
+class KeyFactory:
+    """Stands in for `build_gemini_client`: records each key, returns the client or raises."""
+
+    def __init__(self, client: FakeGeminiClient, error: Exception | None) -> None:
+        self.keys: list[str] = []
+        self._client = client
+        self._error = error
+
+    def __call__(self, api_key: str) -> FakeGeminiClient:
+        self.keys.append(api_key)
+        if self._error is not None:
+            raise self._error
+        return self._client
+
+
+def files_in(root: Path) -> dict[str, bytes]:
+    """Every file under root, by relative path, with its bytes."""
+    return {
+        str(item.relative_to(root)): item.read_bytes() for item in root.rglob("*") if item.is_file()
+    }
+
+
+# Feature: gemini-driver, Property P6.9: The gemini CLI path never prints or writes the key
+@given(
+    api_key=api_keys,
+    model=cli_models,
+    enforce=st.sampled_from(("on", "off")),
+    out_mode=st.sampled_from(CLI_OUT_MODES),
+    outcome=st.sampled_from(CLI_OUTCOMES),
+    error_type=st.sampled_from(CLI_ERROR_TYPES),
+    script=st.lists(gemini_replies, max_size=5),
+)
+def test_p6_9_gemini_cli_path_never_prints_or_writes_the_key(
+    api_key: str,
+    model: str,
+    enforce: str,
+    out_mode: str,
+    outcome: str,
+    error_type: type[Exception],
+    script: list[dict[str, object]],
+) -> None:
+    """Property P6.9: for any generated key, any non-blank model, enforce on or off, --out absent,
+    new or pre-existing, and any outcome (fake replies ending in finish, the Fake_Client raising
+    with the key in its message, the replaced factory raising with the key in its message), stdout,
+    stderr and every file written contain no occurrence of the key; a final status prints the
+    timeline, status and outbox and exits 0; a run failure prints exactly the run aborted line and
+    a factory failure exactly the building line, both exit 1 with empty stdout, a pre-existing
+    --out file keeps its bytes and no file is created.
+    Validates: 6.7.1, 6.7.2, 6.8.4, 6.8.5, 6.8.6, 6.10.1, 6.10.2, 6.10.3, 6.10.4"""
+    assume(api_key not in model)
+    error = error_type(f"request failed for key {api_key}")
+    if outcome == "run_error":
+        client: FakeGeminiClient = RaisingGeminiClient(error)
+    else:
+        client = FakeGeminiClient(*copy.deepcopy(script), FINISH_REPLY)
+    factory = KeyFactory(client, error if outcome == "factory_error" else None)
+    argv = ["run", "poisoned_briefing", "--enforce", enforce, "--driver", "gemini"]
+    env = {"AGENT_MODEL": model, "GEMINI_API_KEY": api_key}
+
+    with tempfile.TemporaryDirectory() as directory, pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(cli, "build_gemini_client", factory)
+        root = Path(directory)
+        path = root / "run.json"
+        if out_mode == "existing":
+            path.write_bytes(CLI_PREVIOUS_BYTES)
+        if out_mode != "absent":
+            argv += ["--out", str(path)]
+        before = files_in(root)
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(argv, env=env, out=out, err=err)
+        stdout, stderr = out.getvalue(), err.getvalue()
+        after = files_in(root)
+
+    assert api_key not in stdout
+    assert api_key not in stderr
+    for name, data in after.items():
+        assert api_key.encode("utf-8") not in data, f"key written to {name}"
+
+    if outcome == "final":
+        assert code == 0
+        assert stderr == ""
+        lines = stdout.splitlines()
+        if out_mode == "absent":
+            status_line, outbox_line = lines[-2:]
+        else:
+            status_line, outbox_line, written_line = lines[-3:]
+            assert written_line == f"replay written: {path}"
+            assert path.name in after
+        assert status_line.startswith("status: ")
+        assert outbox_line.startswith("outbox: ")
+        return
+
+    assert (code, stdout) == (1, "")
+    assert after == before
+    line = CLI_ABORTED_LINE if outcome == "run_error" else CLI_FACTORY_LINE
+    assert stderr == line.format(error_type.__name__)
