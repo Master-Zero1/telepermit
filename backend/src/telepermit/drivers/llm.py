@@ -9,7 +9,9 @@ API. Neither mapping has been exercised against the live service.
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping, Sequence
+import json
+import threading
+from collections.abc import Callable, Mapping, Sequence
 from typing import Final, Protocol
 
 from telepermit.drivers import FINISH_ACTION, GO_PREFIX
@@ -20,6 +22,10 @@ ENV_API_KEY: Final = "ANTHROPIC_API_KEY"
 ENV_GEMINI_API_KEY: Final = "GEMINI_API_KEY"
 PROVIDER_ANTHROPIC: Final = "anthropic"
 PROVIDER_GEMINI: Final = "gemini"
+GEMINI_BASE_URL: Final = "https://generativelanguage.googleapis.com/v1beta/models/"
+GEMINI_METHOD: Final = ":generateContent"
+GEMINI_KEY_HEADER: Final = "x-goog-api-key"
+REQUEST_TIMEOUT_S: Final = 60.0
 MAX_TOKENS: Final = 1024
 GO_TOOL: Final = "go"
 SYSTEM_PROMPT: Final = (
@@ -37,6 +43,10 @@ _RESULT_KEY: Final = "result"  # functionResponse.response = {"result": <text>}
 
 class LLMUnavailableError(RuntimeError):
     """The optional llm extra (the anthropic package) is not installed."""
+
+
+class GeminiRequestError(RuntimeError):
+    """A failed Gemini HTTP call. Messages never hold the API key, URL, headers or body."""
 
 
 class _Response(Protocol):
@@ -77,6 +87,157 @@ def build_client(api_key: str) -> LLMClient:
             "the llm extra is not installed: run uv sync --extra llm"
         ) from exc
     return anthropic.Anthropic(api_key=api_key)  # type: ignore[no-any-return]
+
+
+class _HTTPReply(Protocol):
+    """The part of an opened HTTP response that the Gemini client reads."""
+
+    status: int
+
+    def read(self) -> bytes: ...
+
+    def __enter__(self) -> _HTTPReply: ...
+
+    def __exit__(self, *exc_info: object) -> object: ...
+
+
+class _Opener(Protocol):
+    """The part of a urllib opener that the Gemini client uses."""
+
+    def open(self, request: object, timeout: float) -> _HTTPReply: ...
+
+
+class _Outcome:
+    """What one worker thread saw: a status and body, or a key-free failure message."""
+
+    __slots__ = ("failure", "payload", "status")
+
+    def __init__(self) -> None:
+        self.status: object = None
+        self.payload: bytes = b""
+        self.failure: str | None = None
+
+
+def _status_message(status: object) -> str:
+    return f"Gemini request failed with HTTP status {status}"
+
+
+def _failure_message(exc: Exception) -> str:
+    """The code for an HTTP error, else the type name. Never the original message."""
+    code = getattr(exc, "code", None)
+    if isinstance(code, int) and not isinstance(code, bool):
+        return _status_message(code)
+    return f"Gemini request failed: {type(exc).__name__}"
+
+
+def _close_quietly(exc: Exception) -> None:
+    """Close an HTTP error (it holds an open response) before it is dropped."""
+    close = getattr(exc, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:  # a failed close must not replace the recorded failure
+            return
+
+
+def _parse_reply(payload: bytes) -> dict[str, object]:
+    """The reply as a dict. Raises after the try statement, so no exception chain is kept."""
+    valid = True
+    reply: object = None
+    try:
+        reply = json.loads(payload.decode("utf-8"))
+    except (ValueError, RecursionError):
+        valid = False
+    if not valid:
+        raise GeminiRequestError("Gemini reply is not valid JSON")
+    if not isinstance(reply, dict):
+        raise GeminiRequestError("Gemini reply is not a JSON object")
+    return reply
+
+
+class _UrllibGeminiClient:
+    """One keyed POST per call to generateContent, bounded by timeout_s. Imports nothing."""
+
+    __slots__ = ("_key", "_opener", "_quote", "_request_cls", "_timeout_s")
+
+    def __init__(
+        self,
+        key: str,
+        opener: _Opener,
+        request_cls: Callable[..., object],
+        quote: Callable[..., str],
+        timeout_s: float,
+    ) -> None:
+        self._key = key
+        self._opener = opener
+        self._request_cls = request_cls
+        self._quote = quote
+        self._timeout_s = timeout_s
+
+    def __repr__(self) -> str:
+        return "GeminiClient(api_key=<redacted>)"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def generate_content(self, model: str, body: Mapping[str, object]) -> dict[str, object]:
+        """POST the body once and return the JSON object reply, or raise GeminiRequestError."""
+        url = GEMINI_BASE_URL + self._quote(model, safe="") + GEMINI_METHOD
+        request = self._request_cls(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", GEMINI_KEY_HEADER: self._key},
+            method="POST",
+        )
+        outcome = _Outcome()
+        worker = threading.Thread(target=self._exchange, args=(request, outcome), daemon=True)
+        worker.start()
+        worker.join(self._timeout_s)
+        if worker.is_alive():
+            raise GeminiRequestError(f"Gemini request timed out after {self._timeout_s:g} seconds")
+        if outcome.failure is not None:
+            raise GeminiRequestError(outcome.failure)
+        status = outcome.status
+        if not isinstance(status, int) or isinstance(status, bool) or not 200 <= status <= 299:
+            raise GeminiRequestError(_status_message(status))
+        return _parse_reply(outcome.payload)
+
+    def _exchange(self, request: object, outcome: _Outcome) -> None:
+        """Worker body: one open call; records only key-free facts about the result."""
+        try:
+            with self._opener.open(request, timeout=self._timeout_s) as response:
+                outcome.status = getattr(response, "status", None)
+                outcome.payload = response.read()
+        except Exception as exc:  # every failure becomes a key-free message
+            outcome.failure = _failure_message(exc)
+            _close_quietly(exc)
+
+
+def build_gemini_client(api_key: str, *, timeout_s: float = REQUEST_TIMEOUT_S) -> GeminiClient:
+    """Build the real Gemini client. The only place that imports urllib. Opens nothing."""
+    if not api_key.strip():
+        raise ValueError("the Gemini API key must not be blank")
+    import urllib.parse
+    import urllib.request
+
+    class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        """Follow no redirect: the 3xx surfaces as an HTTP error with its code."""
+
+        def redirect_request(
+            self,
+            req: object,
+            fp: object,
+            code: int,
+            msg: str,
+            headers: object,
+            newurl: str,
+        ) -> None:
+            return None
+
+    opener = urllib.request.build_opener(_NoRedirectHandler())
+    return _UrllibGeminiClient(
+        api_key, opener, urllib.request.Request, urllib.parse.quote, timeout_s
+    )
 
 
 def _string_schema(args: object) -> dict[str, object]:
