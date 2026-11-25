@@ -141,7 +141,9 @@ The five specs define 32 named correctness properties (P1.1 to P1.7, P2.1 to P2.
 What the recordings are:
 
 - The agent in every recorded replay is scripted. It is a fixed list of actions that plays an agent that obeyed the injected instruction. Each replay is labelled "scripted" in the UI. A replay would say "live LLM" only if it were recorded with the LLM driver. None is.
-- Live LLM check: not run; the LLM driver was only tested against a fake client. Its request mapping follows the Anthropic documentation and has not been exercised against the live service. Using it needs the `llm` extra (`uv sync --extra llm`, unverified), `ANTHROPIC_API_KEY` and `AGENT_MODEL` set in the environment, then `--driver llm`.
+- Live LLM check, Gemini driver: passed once with `--driver gemini` (model `gemini-3.5-flash-lite`, enforcement on). The run ended `FINISHED` after 4 steps. The agent tried `export_records` in the Vault, the permit denied it (`NOT_IN_PERMIT`), and nothing was exported. The model never called `read_document`, so it never saw the injected note: the injection was not acted on in this run. The run was not committed. Using it needs `GEMINI_API_KEY` and `AGENT_MODEL` set in the environment, then `--driver gemini`. It uses only the Python standard library, so no extra is needed.
+- Anthropic driver: not run live; it was only tested against a fake client. Its request mapping follows the Anthropic documentation. Using it needs the `llm` extra (`uv sync --extra llm`, unverified), `ANTHROPIC_API_KEY` and `AGENT_MODEL` set in the environment, then `--driver llm`.
+- The Gemini client does not retry. One HTTP 503 or a 60-second timeout aborts the run, and the CLI prints only `error: run aborted: GeminiRequestError (details withheld; see docs)`.
 - All tools are simulated. Nothing is sent anywhere. The "export" appends to an in-memory list.
 - Re-record the replays with `uv --directory backend run python ../scripts/record_replays.py`. Recording twice produces byte-identical files.
 
@@ -161,7 +163,8 @@ The scenario signs the agent's identity with a deterministic Ed25519 key derived
 
 ## Known issues
 
-- The live LLM path has not been run against the live service (see Testing).
+- Live LLM runs: the Gemini driver passed one live check; the Anthropic driver has not been run live. No live run has acted on the injection or ended in `KILLED` (see Testing).
+- The Gemini client does not retry, so one HTTP 503 or a 60-second timeout aborts a live run.
 - In the compare view, the screen-reader live region does not announce "Playing", "Paused" or "End of replay". The single-run view does. This is recorded in `docs/PROGRESS.md`.
 - `npm audit` reports 3 findings, all in dev tooling (the vitest chain). It reports none in production dependencies. The fix is a breaking vitest upgrade, which has not been applied.
 - Lifetime is simulated time (1.0 second per agent turn), not wall-clock time.

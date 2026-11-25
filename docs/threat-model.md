@@ -42,7 +42,7 @@ Telescript facts are limited to the list in the README. The checks described her
 | Authentication and key management | The demo authority key is derived from a public seed, so anyone can reproduce it. Do not reuse that pattern. |
 | The "size" cap | Not implemented. |
 | Wall-clock time | Lifetime is simulated: 1.0 second per driver turn. |
-| Live LLM behaviour | Not run; the LLM driver was only tested against a fake client. All recorded replays are scripted. |
+| Live LLM behaviour | One run only: the Gemini driver (`gemini-3.5-flash-lite`, enforcement on) ended `FINISHED` after 4 steps. Its `export_records` attempt was `DENIED` by the permit and nothing was exported. The model never read the poisoned document, so this run does not show how a live model responds to the injection. The Anthropic driver has not been run live. All recorded replays are scripted. |
 | Vulnerabilities in dependencies | `npm audit` reports 3 findings, all in dev tooling (the vitest chain), none in production dependencies. The fix is a breaking vitest upgrade, not applied. |
 
 ## Invariants
