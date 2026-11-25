@@ -1,6 +1,6 @@
 # Progress tracker (the agent updates this file; the human can read it)
 
-Last updated: 2026-11-xx. Phase 0 and Specs 1 to 6 done. Spec 6 merged to main as 623f1e2, tagged spec-06-done, pushed to origin with its tag (main at 503a483). Next: Phase 6.
+Last updated: 2026-11-xx. Phase 0 and Specs 1 to 6 done. Spec 6 merged to main as 623f1e2, tagged spec-06-done, pushed to origin with its tag (main at d80db8d). Next: Phase 6.
 
 ## Phases
 - [x] Phase 0: scaffold (repo checks, backend, frontend, CI, README stub)
@@ -46,5 +46,5 @@ Spec 1 (permit-identity): [x] 1 T1.1 Permit | [x] 2 T1.2 narrowed_by | [x] 3 T1.
 - Spec 5: the compare view's live region does not announce Playing, Paused or End of replay (single mode does). Gap against design section 15, not a failed requirement.
 - Spec 5: vitest hangs in the agent sandbox; every frontend test run is an owner hand-off.
 - npm audit: 3 vulnerabilities (1 moderate, 2 critical) in dev tooling only (vitest 3.2.7 via @vitest/mocker, tinypool). Production deps: 0. The fix is a breaking upgrade to vitest 5; not applied, awaiting owner decision.
-- Spec 6: one live check passed with the Gemini driver on 2026-11-xx: model gemini-3.5-flash-lite, enforce on, final status FINISHED, exit 0. The replay was not committed, and it does not store the model name. Not settled by this run: 6.4.11 (thoughtSignature echo) and design unknowns U1-U5. Not run yet: enforce off; no live run has ended in KILLED.
+- Spec 6: one live check passed with the Gemini driver on 2026-11-xx: model gemini-3.5-flash-lite, enforce on, final status FINISHED, exit 0. The replay was not committed, and it does not store the model name. U1 and U3 are settled for gemini-3.5-flash-lite by this one live run. U2, U4 (thoughtSignature), U5 and 6.4.11 remain unverified. Not run yet: enforce off; no live run has ended in KILLED.
 - Spec 6: the agent sandbox cannot start Python (Access is denied, os error 5) or read the owner's global git config, so every pytest/ruff run and every commit is an owner hand-off.
