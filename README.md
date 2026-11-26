@@ -128,15 +128,15 @@ Full detail, with the nine invariants, is in [docs/threat-model.md](docs/threat-
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend | `uv --directory backend run pytest -q` | 329 passed |
+| Backend | `uv --directory backend run pytest -q` | 441 passed |
 | Frontend | `npm --prefix frontend test` | 18 test files, 201 tests passed |
 | Frontend build | `npm --prefix frontend run build` | green |
 | Backend lint | `uv --directory backend run ruff check --config pyproject.toml . ../scripts` | All checks passed |
-| Backend format | `uv --directory backend run ruff format --check --config pyproject.toml . ../scripts` | 42 files already formatted |
+| Backend format | `uv --directory backend run ruff format --check --config pyproject.toml . ../scripts` | 47 files already formatted |
 
 The results were run and reported by the repository owner. CI runs lint, tests and the frontend build on every push (`.github/workflows/ci.yml`).
 
-The five specs define 32 named correctness properties (P1.1 to P1.7, P2.1 to P2.5, P3.1 to P3.9, P4.1 to P4.6, P5.1 to P5.5). The backend ones use Hypothesis. The UI ones (P5.x) use a small seeded generator in `frontend/src/test/seeded.ts`, not a property-testing library. An architecture test (`backend/tests/test_architecture.py`) parses imports with `ast` and fails if invariants 1 and 2 are broken.
+The five original specs define 32 named correctness properties (P1.1 to P1.7, P2.1 to P2.5, P3.1 to P3.9, P4.1 to P4.6, P5.1 to P5.5), and Spec 6 (gemini-driver) adds 13 (P6.1 to P6.13), 45 in total. The backend ones use Hypothesis. The UI ones (P5.x) use a small seeded generator in `frontend/src/test/seeded.ts`, not a property-testing library. An architecture test (`backend/tests/test_architecture.py`) parses imports with `ast` and fails if invariants 1 and 2 are broken.
 
 What the recordings are:
 
@@ -149,8 +149,8 @@ What the recordings are:
 
 ## How Kiro was used
 
-- Specs: five specs in `.kiro/specs/` (permit-identity, tools-places-admission, engine-audit, scenario-drivers-replays, timeline-ui), each written requirements first, then design, then tasks.
-- Property-based tests: the 32 properties above are written into each design document and implemented as tests.
+- Specs: five specs in `.kiro/specs/` (permit-identity, tools-places-admission, engine-audit, scenario-drivers-replays, timeline-ui) plus Spec 6 (gemini-driver), each written requirements first, then design, then tasks.
+- Property-based tests: the 45 properties above are written into each design document and implemented as tests.
 - Steering: seven always-on files in `.kiro/steering/` (product scope, quality bar, security invariants, structure, tech, Telescript facts, workflow).
 - Hooks: five hooks in `.kiro/hooks/` (property-guard, invariant-review, fact-guard, spec-sync, journal).
 - Journal: a dated, factual log of what worked and what went wrong is in [docs/kiro-journal.md](docs/kiro-journal.md).
