@@ -132,7 +132,7 @@ Full detail, with the nine invariants, is in [docs/threat-model.md](docs/threat-
 | Frontend | `npm --prefix frontend test` | 18 test files, 201 tests passed |
 | Frontend build | `npm --prefix frontend run build` | green |
 | Backend lint | `uv --directory backend run ruff check --config pyproject.toml . ../scripts` | All checks passed |
-| Backend format | `uv --directory backend run ruff format --check --config pyproject.toml . ../scripts` | 47 files already formatted |
+| Backend format | `uv --directory backend run ruff format --check --config pyproject.toml . ../scripts` | 48 files already formatted |
 
 The results were run and reported by the repository owner. CI runs lint, tests and the frontend build on every push (`.github/workflows/ci.yml`).
 
